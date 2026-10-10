@@ -35,7 +35,7 @@ Group members are highlighted automatically in author lists (matched by `name` a
 
 ## Deploy (GitHub Pages)
 
-The site lives at https://saka-research.github.io and is built from the repository
+The site lives at https://sakaresearch.org (custom domain, DNS via Cloudflare set to "DNS only") and is built from the repository
 `Saka-Research/saka-research.github.io`. Every push to `main` rebuilds and publishes it
 (Settings → Pages → Source: GitHub Actions).
 
