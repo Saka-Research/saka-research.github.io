@@ -4,6 +4,8 @@ import PageHeader from '../components/PageHeader.astro';
 import MemberCard from '../components/MemberCard.astro';
 import { SITE } from '../site.config';
 import { getTeam } from '../lib/content';
+import { COLLABORATORS } from '../data/collaborators';
+import Icon from '../components/Icon.astro';
 
 const { current, alumni } = await getTeam();
 ---
@@ -14,6 +16,23 @@ const { current, alumni } = await getTeam();
 
     <div class="grid">
       {current.map((m, i) => <MemberCard member={m} delay={(i % 4) * 0.05} />)}
+    </div>
+
+    <div class="section-head" data-reveal>
+      <h2>Long-term collaborators</h2>
+    </div>
+    <div class="collabs">
+      {
+        COLLABORATORS.map((c, i) => (
+          <a href={c.href} class="card collab" data-reveal style={`--reveal-delay:${(i % 4) * 0.04}s`}>
+            <h3>{c.name}</h3>
+            <p>{c.affiliation}</p>
+            <span class="cta">
+              <Icon name="scholar" size={14} /> Google Scholar
+            </span>
+          </a>
+        ))
+      }
     </div>
 
     {
@@ -45,6 +64,31 @@ const { current, alumni } = await getTeam();
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 16px;
     align-items: stretch;
+  }
+  .collabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .collab {
+    padding: 16px 18px;
+  }
+  .collab h3 {
+    margin: 0;
+    font-size: 1.2rem;
+  }
+  .collab p {
+    margin: 2px 0 10px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .collab .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--accent);
   }
   .alumni {
     display: grid;

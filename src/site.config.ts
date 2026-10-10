@@ -3,6 +3,8 @@
 // (search the project for "TODO" to find all of them).
 export const SITE = {
   name: 'Saka Research',
+  // Shown in the header (top left) and as the title on the home page
+  displayName: 'Saka Lab',
   // Shown in the browser tab after the page title, e.g. "Team | Saka Research"
   shortName: 'Saka Research',
   // Plain-text summary, used as the page description for search engines and link previews.
