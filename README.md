@@ -1,7 +1,6 @@
 # Saka Research website
 
-Group website for Saka Research (*saka* is Turkish for goldfinch). Built with [Astro](https://astro.build),
-same fonts and colours as the personal website. Deployed to GitHub Pages on every push to `main`.
+Group website for Saka Research (*saka* is Turkish for goldfinch). Built with [Astro](https://astro.build). Deployed to GitHub Pages on every push to `main`.
 
 ## Run locally
 
