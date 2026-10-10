@@ -43,6 +43,7 @@ const team = defineCollection({
       'PhD Student',
       'Research Assistant',
       'Visiting Researcher',
+      'External Collaborator',
       'Visiting Student',
       'Master Student',
     ]),

@@ -29,6 +29,7 @@ export const ROLE_ORDER = [
   'PhD Student',
   'Research Assistant',
   'Visiting Researcher',
+  'External Collaborator',
   'Visiting Student',
   'Master Student',
 ] as const;
