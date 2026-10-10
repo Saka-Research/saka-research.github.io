@@ -1,0 +1,145 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHeader from '../components/PageHeader.astro';
+import Icon from '../components/Icon.astro';
+---
+
+<Base title="Search" description="Search news, publications, research, and team pages.">
+  <section class="container narrow">
+    <PageHeader title="Search" subtitle="Search news posts, publications, research pages, and other site content." />
+    <label class="box">
+      <Icon name="search" />
+      <span class="sr-only">Search</span>
+      <input id="q" type="search" placeholder="Search" autocomplete="off" autofocus />
+    </label>
+    <p class="status muted" aria-live="polite"></p>
+    <ul class="results"></ul>
+  </section>
+</Base>
+
+<script>
+  type Entry = { type: string; title: string; url: string; meta?: string; text: string };
+  const input = document.querySelector<HTMLInputElement>('#q')!;
+  const list = document.querySelector<HTMLUListElement>('.results')!;
+  const status = document.querySelector<HTMLParagraphElement>('.status')!;
+  let index: Entry[] = [];
+
+  const norm = (s: string) =>
+    s
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/ı/g, 'i')
+      .toLowerCase();
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+
+  function snippet(text: string, term: string) {
+    const i = norm(text).indexOf(term);
+    if (i < 0) return esc(text.slice(0, 140)) + (text.length > 140 ? '…' : '');
+    const start = Math.max(0, i - 60);
+    const s = text.slice(start, i + 100);
+    const j = i - start;
+    return (start > 0 ? '…' : '') + esc(s.slice(0, j)) + '<mark>' + esc(s.slice(j, j + term.length)) + '</mark>' + esc(s.slice(j + term.length)) + '…';
+  }
+
+  function run() {
+    const q = norm(input.value.trim());
+    const url = new URL(location.href);
+    q ? url.searchParams.set('q', input.value.trim()) : url.searchParams.delete('q');
+    history.replaceState(null, '', url);
+    list.innerHTML = '';
+    if (!q) {
+      status.textContent = '';
+      return;
+    }
+    const terms = q.split(/\s+/);
+    const hits = index
+      .map((e) => {
+        const title = norm(e.title);
+        const all = title + ' ' + norm(e.text);
+        if (!terms.every((t) => all.includes(t))) return null;
+        const score = terms.reduce((s, t) => s + (title.includes(t) ? 3 : 1), 0);
+        return { e, score };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b!.score - a!.score) as { e: Entry; score: number }[];
+    status.textContent = `${hits.length} result${hits.length === 1 ? '' : 's'} for “${input.value.trim()}”`;
+    list.innerHTML = hits
+      .map(
+        ({ e }) => `<li>
+          <p class="kind">${esc(e.type)}${e.meta ? ' · ' + esc(e.meta) : ''}</p>
+          <a href="${e.url}">${esc(e.title)}</a>
+          <p class="snip">${snippet(e.text, terms[0])}</p>
+        </li>`,
+      )
+      .join('');
+  }
+
+  fetch('/search.json')
+    .then((r) => r.json())
+    .then((data: Entry[]) => {
+      index = data;
+      const q = new URL(location.href).searchParams.get('q');
+      if (q) input.value = q;
+      run();
+    });
+  input.addEventListener('input', run);
+</script>
+
+<style>
+  .box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+    color: var(--muted);
+  }
+  .box:focus-within {
+    border-color: var(--accent);
+  }
+  input {
+    flex: 1;
+    padding: 12px 0;
+    border: 0;
+    outline: none;
+    background: none;
+    font: inherit;
+    color: var(--text);
+  }
+  .status {
+    font-size: 0.88rem;
+  }
+  .results {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .results :global(li) {
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+  }
+  .results :global(.kind) {
+    margin: 0;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .results :global(a) {
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+  .results :global(.snip) {
+    margin: 4px 0 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .results :global(mark) {
+    background: var(--glow);
+    color: var(--text);
+    border-radius: 3px;
+    padding: 0 2px;
+  }
+</style>

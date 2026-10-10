@@ -1,0 +1,158 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHeader from '../components/PageHeader.astro';
+import PubItem from '../components/PubItem.astro';
+import { SITE } from '../site.config';
+import { getPublications, getResearch, getMemberNames } from '../lib/content';
+
+const pubs = await getPublications();
+const areas = (await getResearch()).filter((a) => pubs.some((p) => p.data.areas.some((r) => r.id === a.id)));
+const members = await getMemberNames();
+
+const byYear = new Map<number, typeof pubs>();
+for (const p of pubs) {
+  const y = p.data.date.getUTCFullYear();
+  byYear.set(y, [...(byYear.get(y) ?? []), p]);
+}
+// Text used by the client-side filter
+const haystack = (p: (typeof pubs)[number]) =>
+  [p.data.title, p.data.authors.join(' '), p.data.venue, p.data.abstract ?? ''].join(' ').toLowerCase();
+---
+
+<Base title="Publications" description={`Publications from ${SITE.name}.`}>
+  <section class="container">
+    <PageHeader title="Publications" subtitle={`Selected publications from ${SITE.name}`} />
+
+    <div class="filters" data-reveal>
+      <input type="search" id="pub-filter" placeholder="Filter by title, author, or venue…" aria-label="Filter publications" />
+      {
+        areas.length > 0 && (
+          <div class="chips" role="group" aria-label="Filter by research area">
+            <button type="button" class="chip on" data-area="">
+              All
+            </button>
+            {areas.map((a) => (
+              <button type="button" class="chip" data-area={a.id}>
+                {a.data.title}
+              </button>
+            ))}
+          </div>
+        )
+      }
+    </div>
+
+    {
+      [...byYear].map(([year, items]) => (
+        <div class="year" data-year>
+          <h2 data-reveal>{year}</h2>
+          <div class="grid">
+            {items.map((p, i) => (
+              <div class="cell" data-text={haystack(p)} data-areas={p.data.areas.map((r) => r.id).join(' ')}>
+                <PubItem pub={p} members={members} delay={(i % 2) * 0.06} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))
+    }
+    <p class="muted empty" hidden>No publications match your filter.</p>
+  </section>
+</Base>
+
+<script>
+  const input = document.querySelector<HTMLInputElement>('#pub-filter')!;
+  const chips = [...document.querySelectorAll<HTMLButtonElement>('.chip')];
+  let area = '';
+  function apply() {
+    const q = input.value.trim().toLowerCase();
+    let shown = 0;
+    document.querySelectorAll<HTMLElement>('[data-year]').forEach((year) => {
+      let inYear = 0;
+      year.querySelectorAll<HTMLElement>('.cell').forEach((cell) => {
+        const ok = (!q || cell.dataset.text!.includes(q)) && (!area || cell.dataset.areas!.split(' ').includes(area));
+        cell.hidden = !ok;
+        if (ok) inYear++;
+      });
+      year.hidden = inYear === 0;
+      shown += inYear;
+    });
+    document.querySelector<HTMLElement>('.empty')!.hidden = shown > 0;
+  }
+  input.addEventListener('input', apply);
+  chips.forEach((c) =>
+    c.addEventListener('click', () => {
+      chips.forEach((o) => o.classList.toggle('on', o === c));
+      area = c.dataset.area ?? '';
+      apply();
+    }),
+  );
+</script>
+
+<style>
+  .filters {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  input {
+    width: 100%;
+    max-width: 460px;
+    padding: 10px 14px;
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    background: var(--bg-elev);
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius);
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chip {
+    font: inherit;
+    font-size: 0.82rem;
+    padding: 4px 12px;
+    border-radius: 99px;
+    border: 1.5px solid var(--line);
+    background: var(--bg-elev);
+    color: var(--muted);
+    cursor: pointer;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .chip:hover {
+    border-color: var(--fill);
+    color: var(--accent);
+  }
+  .chip.on {
+    border-color: var(--fill);
+    background: var(--fill);
+    color: var(--on-fill);
+  }
+  .year h2 {
+    font-size: 1.6rem;
+    font-family: var(--font-display);
+    color: var(--muted);
+    margin: 36px 0 14px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .cell > :global(*) {
+    height: 100%;
+  }
+  .empty {
+    margin-top: 32px;
+  }
+</style>

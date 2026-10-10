@@ -1,0 +1,107 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import AreaAnimation from '../../components/AreaAnimation.astro';
+import Icon from '../../components/Icon.astro';
+import { getResearch } from '../../lib/content';
+
+const areas = await getResearch();
+const subtitle =
+  'Relational learning, reasoning, generative AI, AI for mathematics, and AI for science, from theoretical foundations to applications in the life sciences.';
+---
+
+<Base title="Research" description={subtitle}>
+  <section class="container">
+    <PageHeader title="Research" subtitle={subtitle} />
+    <div class="grid">
+      {
+        areas.map((a, i) => (
+          <a href={`/research/${a.id}/`} class="card area" data-reveal style={`--reveal-delay:${(i % 2) * 0.08}s`}>
+            <div class="thumb">
+              {a.data.image ? <img src={a.data.image} alt="" loading="lazy" /> : <AreaAnimation kind={a.data.animation} seed={a.id} />}
+              <span class="badge status">{a.data.status === 'active' ? 'Active' : 'Past'}</span>
+            </div>
+            <div class="body">
+              <h2>{a.data.title}</h2>
+              <p>{a.data.summary}</p>
+              <div class="tags">
+                {a.data.tags.map((t) => (
+                  <span class="tag">{t}</span>
+                ))}
+              </div>
+              <span class="cta">
+                Learn More <Icon name="arrow" size={15} />
+              </span>
+            </div>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+</Base>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  .area {
+    display: flex;
+    flex-direction: column;
+  }
+  .thumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-bottom: 1px solid var(--line);
+  }
+  .thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0;
+  }
+  .status {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--bg-elev);
+  }
+  .body {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding: 18px 22px 20px;
+  }
+  h2 {
+    margin: 0 0 8px;
+    font-size: 1.5rem;
+  }
+  p {
+    margin: 0 0 14px;
+    font-size: 0.93rem;
+    color: var(--muted);
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--accent);
+  }
+  .cta :global(.icon) {
+    transition: transform 0.2s ease;
+  }
+  .area:hover .cta :global(.icon) {
+    transform: translateX(3px);
+  }
+</style>

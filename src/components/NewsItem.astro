@@ -1,0 +1,43 @@
+---
+import Icon from './Icon.astro';
+import { formatDate, type News } from '../lib/content';
+
+interface Props {
+  item: News;
+  delay?: number;
+}
+const { item, delay = 0 } = Astro.props;
+---
+
+<article class="news-item" data-reveal style={`--reveal-delay:${delay}s`}>
+  <h3><a href={`/news/${item.id}/`}>{item.data.title}</a></h3>
+  <p class="date"><Icon name="calendar" size={14} /> <time datetime={item.data.date.toISOString()}>{formatDate(item.data.date)}</time></p>
+  <p class="summary">{item.data.summary}</p>
+</article>
+
+<style>
+  .news-item {
+    padding: 18px 0;
+    border-top: 1.5px solid var(--line);
+  }
+  .news-item:first-child {
+    border-top: 0;
+  }
+  h3 {
+    margin: 0;
+    font-size: 1.32rem;
+  }
+  .date {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 6px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .summary {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+</style>

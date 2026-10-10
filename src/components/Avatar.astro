@@ -1,0 +1,40 @@
+---
+import { initials } from '../lib/content';
+
+interface Props {
+  name: string;
+  photo?: string;
+  size?: number;
+}
+const { name, photo, size = 96 } = Astro.props;
+---
+
+{
+  photo ? (
+    <img class="avatar" src={photo} alt={`Photo of ${name}`} width={size} height={size} style={`--size:${size}px`} loading="lazy" />
+  ) : (
+    <span class="avatar initials" style={`--size:${size}px`} aria-hidden="true">
+      {initials(name)}
+    </span>
+  )
+}
+
+<style>
+  .avatar {
+    display: grid;
+    place-items: center;
+    width: var(--size);
+    height: var(--size);
+    border-radius: 50%;
+    object-fit: cover;
+    flex: none;
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  .initials {
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg-elev));
+    color: var(--accent);
+    font-weight: 600;
+    font-size: calc(var(--size) * 0.34);
+    letter-spacing: 0.02em;
+  }
+</style>

@@ -1,0 +1,234 @@
+---
+import Base from '../layouts/Base.astro';
+import NetworkCanvas from '../components/NetworkCanvas.astro';
+import NewsItem from '../components/NewsItem.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../site.config';
+import { getNews } from '../lib/content';
+
+const news = (await getNews()).slice(0, 6);
+
+const explore = [
+  { href: '/research/', title: 'Research', text: 'Explore our research areas and ongoing projects.', cta: 'View Research' },
+  { href: '/team/', title: 'Team', text: 'Meet the researchers and students in the group.', cta: 'Meet the Team' },
+  { href: '/publications/', title: 'Publications', text: 'Browse our peer-reviewed papers and preprints.', cta: 'View Publications' },
+  { href: '/join/', title: 'Join the Group', text: 'Opportunities to join the group in Vienna and Oxford.', cta: 'Join the Group' },
+];
+---
+
+<Base>
+  <section class="hero">
+    <NetworkCanvas />
+    <div class="container hero-content">
+      <p class="eyebrow motto">
+        {SITE.motto.map((m, i) => <>{i > 0 && <span class="dot" aria-hidden="true">·</span>}{m}</>)}
+      </p>
+      <h1>{SITE.name}</h1>
+      <div class="intro">
+        <!-- TODO: review the intro text -->
+        <p class="lede">
+          We are a machine learning research group led by <a href={SITE.pi.href}>{SITE.pi.name}</a>, with three homes:
+          <a href="https://www.tuwien.at/">TU Wien</a> and <a href="https://www.aithyra.at/">AITHYRA</a> in Vienna, and the
+          <a href="https://www.cs.ox.ac.uk/">University of Oxford</a>.
+        </p>
+        <p>
+          Our research is broad, spanning <strong>relational learning</strong> (graph learning, graph foundation models,
+          and knowledge graphs), <strong>reasoning</strong>, <strong>generative AI</strong>, <strong>AI for
+          mathematics</strong>, and <strong>AI for science</strong>. Across these areas, we combine theory and practice:
+          we characterise what models can express, how they generalise, and how well they transfer across tasks and
+          domains, and we use these insights to design new methods from first principles.
+        </p>
+        <p>
+          Many of our applications come from the sciences. How soluble is a molecule? Which genes are linked to a disease?
+          How does a protein fold? Questions like these rest on structured, relational data, and together with our
+          colleagues at <a href="https://www.aithyra.at/">AITHYRA</a> we pay particular attention to the life sciences,
+          with the aim of accelerating scientific discovery.
+        </p>
+        <p class="name-note">
+          <strong>Saka</strong> <span class="pron">/saˈka/, “sah-KAH”</span>, is Turkish for the European goldfinch. Finches
+          hold a special place in science: in <em>The Voyage of the Beagle</em>, Charles Darwin noted how the beaks of the
+          Galápagos finches varied from island to island, an observation that became one of the best-known examples of
+          evolution by natural selection.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container">
+    <figure class="group-photo" data-reveal>
+      <!-- TODO: put a group photo at public/media/group.jpg and replace this placeholder with
+           <img src="/media/group.jpg" alt="The Saka Research group" /> -->
+      <div class="photo-placeholder">
+        <span>Group photo</span>
+        <small>Placeholder · public/media/group.jpg</small>
+      </div>
+      <figcaption>{SITE.name}, [TODO: place and date]</figcaption>
+    </figure>
+
+    <div class="connect" data-reveal>
+      <span class="muted">Connect:</span>
+      {
+        SITE.social.map((s) => (
+          <a href={s.href} aria-label={s.label} title={s.label}>
+            <Icon name={s.kind} />
+          </a>
+        ))
+      }
+      <a href={`mailto:${SITE.email}`} aria-label={`Send an email to ${SITE.pi.name}`} title="Email"><Icon name="email" /></a>
+    </div>
+
+    <div class="section-head" data-reveal><h2>Explore</h2></div>
+    <div class="explore">
+      {
+        explore.map((e, i) => (
+          <a href={e.href} class="card explore-card" data-reveal style={`--reveal-delay:${i * 0.06}s`}>
+            <h3>{e.title}</h3>
+            <p>{e.text}</p>
+            <span class="cta">
+              {e.cta} <Icon name="arrow" size={15} />
+            </span>
+          </a>
+        ))
+      }
+    </div>
+
+    <div class="section-head" data-reveal>
+      <h2>Recent News</h2>
+      <a href="/news/">All News →</a>
+    </div>
+    <div class="news">
+      {news.map((n, i) => <NewsItem item={n} delay={i * 0.05} />)}
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero {
+    position: relative;
+    padding: 72px 0 72px;
+    overflow: hidden;
+    /* fade the animation out towards the page below */
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 70px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 70px), transparent);
+  }
+  .hero-content {
+    position: relative;
+    pointer-events: none;
+    animation: rise 1s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .hero-content :global(a) {
+    pointer-events: auto;
+  }
+  .dot {
+    margin: 0 0.6em;
+    color: var(--accent);
+  }
+  h1 {
+    margin: 10px 0 20px;
+    font-size: clamp(3rem, 7.5vw, 4.6rem);
+    line-height: 1;
+  }
+  .name-note {
+    padding-left: 16px;
+    border-left: 4px solid var(--accent);
+    color: var(--muted);
+  }
+  .name-note strong {
+    color: var(--text);
+  }
+  .pron {
+    font-style: italic;
+  }
+  .intro p {
+    margin: 0 0 14px;
+    font-size: 1.08rem;
+  }
+  .intro .lede {
+    font-size: 1.2rem;
+    color: var(--muted);
+  }
+  .placeholder {
+    color: var(--muted);
+    font-style: italic;
+  }
+  .group-photo {
+    margin: 24px 0 0;
+  }
+  .photo-placeholder {
+    display: grid;
+    place-content: center;
+    gap: 4px;
+    text-align: center;
+    aspect-ratio: 21 / 9;
+    border: 1.5px dashed var(--line);
+    border-radius: var(--radius);
+    background:
+      radial-gradient(circle at 20% 30%, var(--glow), transparent 55%),
+      var(--bg-elev);
+    color: var(--muted);
+  }
+  .photo-placeholder span {
+    font-weight: 600;
+    color: var(--text);
+  }
+  figcaption {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  .connect {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 28px;
+  }
+  .connect a {
+    color: var(--muted);
+    background: none;
+  }
+  .connect a:hover {
+    color: var(--accent);
+  }
+  .explore {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .explore-card {
+    padding: 22px 22px 18px;
+    display: flex;
+    flex-direction: column;
+  }
+  .explore-card h3 {
+    margin: 0 0 6px;
+    font-size: 1.45rem;
+  }
+  .explore-card p {
+    position: relative;
+    margin: 0 0 16px;
+    font-size: 0.93rem;
+    color: var(--muted);
+  }
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--accent);
+  }
+  .explore-card:hover .cta :global(.icon) {
+    transform: translateX(3px);
+  }
+  .cta :global(.icon) {
+    transition: transform 0.2s ease;
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
+</style>

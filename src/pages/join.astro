@@ -1,0 +1,278 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHeader from '../components/PageHeader.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../site.config';
+import { JOIN } from '../data/join';
+
+const open = JOIN.positions.filter((p) => p.open);
+const intro = open.length ? JOIN.intro : JOIN.introClosed;
+const mailto = (subject: string, body = '') =>
+  `mailto:${SITE.email}?subject=${encodeURIComponent(subject)}${body ? `&body=${encodeURIComponent(body)}` : ''}`;
+---
+
+<Base title="Join Us" description={intro}>
+  <section class="container">
+    <PageHeader title="Join the group" subtitle={intro} />
+
+    <h2 class="h rule" data-reveal>Open positions</h2>
+    {
+      open.length === 0 && (
+        <div class="card notice" data-reveal>
+          <p>{JOIN.noPositions}</p>
+        </div>
+      )
+    }
+    <div class="positions">
+      {
+        open.map((p, i) => (
+          <article class="card position" data-reveal style={`--reveal-delay:${(i % 2) * 0.06}s`}>
+            <div class="pos-head">
+              <h3>{p.title}</h3>
+              <span class:list={['badge', { closed: !p.open }]}>{p.open ? 'Open' : 'Closed'}</span>
+            </div>
+            <p class="lead">{p.lead}</p>
+            <div class="lists">
+              <div>
+                <p class="eyebrow">What we're looking for</p>
+                <ul class="look">
+                  {p.lookingFor.map((x) => (
+                    <li>{x}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p class="eyebrow">What we offer</p>
+                <ul class="offer">
+                  {p.offer.map((x) => (
+                    <li>{x}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <p class="body">{p.body}</p>
+            {p.open && (
+              <a class="apply" href={mailto(`[${SITE.name}] Application: ${p.title}`)}>
+                Apply by email <Icon name="arrow" size={15} />
+              </a>
+            )}
+          </article>
+        ))
+      }
+    </div>
+
+    {
+      open.length > 0 && (
+        <>
+    <h2 class="h rule" data-reveal>How to apply</h2>
+          <ol class="steps">
+            {
+              JOIN.steps.map((s, i) => (
+                <li data-reveal style={`--reveal-delay:${i * 0.06}s`}>
+                  <span class="num">{i + 1}</span>
+                  <h3>{s.title}</h3>
+                  <p>{s.text}</p>
+                </li>
+              ))
+            }
+          </ol>
+      
+          <div class="card template" data-reveal>
+            <div>
+              <h3>Suggested email template</h3>
+              <p class="muted">Click below to open your mail client with a prefilled template. Replace the placeholders with your details.</p>
+              <a class="pill primary" href={mailto(JOIN.emailSubject, JOIN.emailBody)}>
+                Email {SITE.pi.short} <Icon name="arrow" size={15} />
+              </a>
+            </div>
+            <pre>{JOIN.emailBody}</pre>
+          </div>
+        </>
+      )
+    }
+
+    <div class="card contact" data-reveal>
+      <h3>Still have questions?</h3>
+      <p class="muted">Email {SITE.pi.short} directly.</p>
+      <a href={`mailto:${SITE.email}`}>{SITE.email} →</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .h {
+    margin: 64px 0 18px;
+    font-size: 2rem;
+  }
+  .notice {
+    padding: 22px 26px;
+    border-left: 4px solid var(--accent);
+  }
+  .notice p {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+  .positions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 18px;
+  }
+  @media (max-width: 500px) {
+    .notice {
+    padding: 22px 26px;
+    border-left: 4px solid var(--accent);
+  }
+  .notice p {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+  .positions {
+      grid-template-columns: 1fr;
+    }
+  }
+  .position {
+    display: flex;
+    flex-direction: column;
+    padding: 22px 24px;
+  }
+  .position > * {
+    position: relative;
+  }
+  .pos-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .pos-head h3 {
+    margin: 0;
+    font-size: 1.55rem;
+  }
+  .badge.closed {
+    color: var(--muted);
+    border-color: var(--line);
+    background: none;
+  }
+  .lead {
+    margin: 8px 0 16px;
+    color: var(--muted);
+  }
+  .lists {
+    display: grid;
+    gap: 14px;
+  }
+  ul {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    font-size: 0.92rem;
+  }
+  li {
+    position: relative;
+    padding-left: 20px;
+  }
+  li + li {
+    margin-top: 4px;
+  }
+  .look li::before,
+  .offer li::before {
+    position: absolute;
+    left: 2px;
+    font-weight: 700;
+  }
+  .look li::before {
+    content: '›';
+    color: var(--accent);
+  }
+  .offer li::before {
+    content: '+';
+    color: var(--accent-2);
+  }
+  .body {
+    margin: 16px 0 18px;
+    font-size: 0.92rem;
+  }
+  .apply {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    font-weight: 500;
+    align-self: flex-start;
+  }
+  .steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 24px;
+  }
+  .steps li {
+    padding: 0;
+  }
+  .num {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg-elev));
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .steps h3 {
+    margin: 10px 0 4px;
+    font-size: 1.3rem;
+  }
+  .steps p {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--muted);
+  }
+  .template {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 24px;
+    margin-top: 32px;
+    padding: 24px;
+  }
+  .template > * {
+    position: relative;
+  }
+  @media (max-width: 760px) {
+    .template {
+      grid-template-columns: 1fr;
+    }
+  }
+  .template h3 {
+    margin: 0 0 6px;
+    font-size: 1.4rem;
+  }
+  .template pre {
+    margin: 0;
+    padding: 14px 16px;
+    white-space: pre-wrap;
+    border-radius: var(--radius);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .contact {
+    margin-top: 56px;
+    padding: 28px;
+    text-align: center;
+  }
+  .contact > * {
+    position: relative;
+  }
+  .contact h3 {
+    margin: 0 0 4px;
+    font-size: 1.5rem;
+  }
+  .contact p {
+    margin: 0 0 10px;
+  }
+</style>

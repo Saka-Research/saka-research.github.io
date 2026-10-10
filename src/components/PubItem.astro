@@ -1,0 +1,218 @@
+---
+import { formatMonth, normalizeName, type Publication } from '../lib/content';
+
+interface Props {
+  pub: Publication;
+  members: Set<string>; // normalized names of group members (highlighted in the author list)
+  delay?: number;
+  compact?: boolean; // hide abstract & BibTeX (used on research pages)
+}
+const { pub, members, delay = 0, compact = false } = Astro.props;
+const { title, authors, venue, venueNote, date, abstract, pdf, arxiv, doi, code, project, bibtex } = pub.data;
+
+const splitMarks = (a: string) => {
+  const m = a.match(/^(.*?)([*†‡]*)$/)!;
+  return { name: m[1].trim(), marks: m[2] };
+};
+const links = [
+  pdf && { label: 'PDF', href: pdf },
+  arxiv && { label: 'arXiv', href: `https://arxiv.org/abs/${arxiv}` },
+  doi && { label: 'DOI', href: `https://doi.org/${doi}` },
+  code && { label: 'Code', href: code },
+  project && { label: 'Project', href: project },
+].filter(Boolean) as { label: string; href: string }[];
+---
+
+<article class="card pub" data-reveal style={`--reveal-delay:${delay}s`} data-pub>
+  <h3>{links[0] ? <a href={links[0].href}>{title}</a> : title}</h3>
+  <p class="authors">
+    {
+      authors.map((a, i) => {
+        const { name, marks } = splitMarks(a);
+        return (
+          <>
+            {members.has(normalizeName(name)) ? <span class="member">{name}</span> : name}
+            {marks && <sup>{marks}</sup>}
+            {i < authors.length - 1 && ', '}
+          </>
+        );
+      })
+    }
+  </p>
+  <p class="venue">
+    In <em>{venue}</em>{venueNote && <strong class="note"> ({venueNote})</strong>}
+  </p>
+  <p class="date">{formatMonth(date)}</p>
+  {
+    !compact && abstract && (
+      <div class="abstract-wrap">
+        <p class="abstract">{abstract}</p>
+        <button type="button" class="more" data-toggle-abstract aria-expanded="false">
+          Show more
+        </button>
+      </div>
+    )
+  }
+  {
+    (links.length > 0 || (!compact && bibtex)) && (
+      <div class="links">
+        {links.map((l) => (
+          <a href={l.href}>{l.label}</a>
+        ))}
+        {!compact && bibtex && (
+          <button type="button" class="bib-btn" data-toggle-bib aria-expanded="false">
+            BibTeX
+          </button>
+        )}
+      </div>
+    )
+  }
+  {
+    !compact && bibtex && (
+      <div class="bib" hidden>
+        <pre>{bibtex.trim()}</pre>
+        <button type="button" class="copy" data-copy-bib>
+          Copy
+        </button>
+      </div>
+    )
+  }
+</article>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-pub]').forEach((card) => {
+    const abs = card.querySelector<HTMLElement>('.abstract');
+    const more = card.querySelector<HTMLButtonElement>('[data-toggle-abstract]');
+    if (abs && more) {
+      // Only offer "Show more" when the abstract is actually clamped.
+      requestAnimationFrame(() => {
+        if (abs.scrollHeight <= abs.clientHeight + 2) more.hidden = true;
+      });
+      more.addEventListener('click', () => {
+        const open = card.classList.toggle('open');
+        more.textContent = open ? 'Show less' : 'Show more';
+        more.setAttribute('aria-expanded', String(open));
+      });
+    }
+    const bibBtn = card.querySelector<HTMLButtonElement>('[data-toggle-bib]');
+    const bib = card.querySelector<HTMLElement>('.bib');
+    bibBtn?.addEventListener('click', () => {
+      bib!.hidden = !bib!.hidden;
+      bibBtn.setAttribute('aria-expanded', String(!bib!.hidden));
+    });
+    card.querySelector<HTMLButtonElement>('[data-copy-bib]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      try {
+        await navigator.clipboard.writeText(bib!.querySelector('pre')!.textContent ?? '');
+        btn.textContent = 'Copied';
+        setTimeout(() => (btn.textContent = 'Copy'), 1500);
+      } catch {}
+    });
+  });
+</script>
+
+<style>
+  .pub {
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+  }
+  h3 {
+    margin: 0 0 6px;
+    font-size: 1.3rem;
+    line-height: 1.2;
+  }
+  h3 a {
+    color: var(--text);
+  }
+  h3 a:hover {
+    color: var(--accent);
+  }
+  p {
+    position: relative;
+    margin: 0;
+  }
+  .authors {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .member {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  sup {
+    font-size: 0.7em;
+    margin-left: 1px;
+  }
+  .venue {
+    margin-top: 4px;
+    font-size: 0.9rem;
+  }
+  .note {
+    color: var(--accent-2);
+    font-weight: 600;
+  }
+  .date {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .abstract-wrap {
+    position: relative;
+    margin-top: 10px;
+  }
+  .abstract {
+    font-size: 0.9rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  :global(.pub.open) .abstract {
+    -webkit-line-clamp: unset;
+    display: block;
+  }
+  button {
+    font: inherit;
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .more {
+    position: relative;
+    margin-top: 2px;
+    font-size: 0.82rem;
+  }
+  .links {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-top: auto;
+    padding-top: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  .bib {
+    position: relative;
+    margin-top: 10px;
+  }
+  .bib pre {
+    margin: 0;
+    padding: 12px 14px;
+    overflow-x: auto;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  .copy {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 0.75rem;
+  }
+</style>

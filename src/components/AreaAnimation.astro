@@ -1,0 +1,577 @@
+---
+// Animated thumbnail for a research area. One canvas per area; the drawing depends on `kind`:
+//   graph    – rotating communities of a graph, with messages passing along the edges
+//   flow     – particles flowing from noise to a target shape (flow matching)
+//   molecule – a rotating ball-and-stick molecule
+//   proof    – a proof tree being assembled from axioms up to ∎
+//   search   – a reasoning search exploring paths and committing to one
+// Animations pause when off-screen and show a single still frame with prefers-reduced-motion.
+interface Props {
+  kind: 'graph' | 'flow' | 'molecule' | 'proof' | 'search';
+  seed?: string;
+}
+const { kind, seed = kind } = Astro.props;
+---
+
+<div class="area-anim">
+  <canvas data-kind={kind} data-seed={seed} aria-hidden="true"></canvas>
+</div>
+
+<script>
+  type Ctx = CanvasRenderingContext2D;
+  type Palette = { accent: string; gold: string; green: string; text: string; muted: string; line: string; bg: string };
+  type Scene = { draw: (ctx: Ctx, w: number, h: number, t: number) => void };
+
+  const css = (name: string, fallback: string) =>
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  const palette = (): Palette => ({
+    accent: css('--accent', '#b23a2e'),
+    gold: css('--gold', '#d9a913'),
+    green: css('--accent-2', '#5d7a31'),
+    text: css('--text', '#1a1d29'),
+    muted: css('--muted', '#5f6472'),
+    line: css('--line', '#e6dfd1'),
+    bg: css('--bg-elev', '#fffdf8'),
+  });
+  let P = palette();
+
+  function rng(seed: string) {
+    let h = 2166136261;
+    for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+    return () => {
+      h ^= h << 13;
+      h ^= h >>> 17;
+      h ^= h << 5;
+      return ((h >>> 0) % 100000) / 100000;
+    };
+  }
+  const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const dot = (ctx: Ctx, x: number, y: number, r: number) => {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  };
+
+  /* ---------- graph: communities that rotate and drift, with message passing ---------- */
+  function graphScene(rand: () => number): Scene {
+    // Three communities (like entity clusters in a knowledge graph). Each one slowly rotates around its own
+    // centre while the centres drift, so the whole network keeps moving; edges between communities are dashed.
+    const C = [
+      { cx: 0.2, cy: 0.42, r: 0.3, n: 7, spin: 0.22 },
+      { cx: 0.5, cy: 0.6, r: 0.26, n: 6, spin: -0.18 },
+      { cx: 0.8, cy: 0.4, r: 0.3, n: 7, spin: 0.15 },
+    ].map((c) => ({ ...c, ph: rand() * Math.PI * 2 }));
+    type N = { c: number; ang: number; rad: number; ph: number; hub: boolean; flash: number };
+    const nodes: N[] = [];
+    C.forEach((c, ci) => {
+      nodes.push({ c: ci, ang: 0, rad: 0, ph: rand() * 6, hub: true, flash: -10 });
+      for (let i = 0; i < c.n; i++)
+        nodes.push({
+          c: ci,
+          ang: (i / c.n) * Math.PI * 2 + rand() * 0.5,
+          rad: 0.55 + rand() * 0.45,
+          ph: rand() * 6,
+          hub: false,
+          flash: -10,
+        });
+    });
+    const edges: { a: number; b: number; inter: boolean }[] = [];
+    const has = (a: number, b: number) => edges.some((e) => (e.a === a && e.b === b) || (e.a === b && e.b === a));
+    C.forEach((_, ci) => {
+      const ids = nodes.map((n, i) => (n.c === ci ? i : -1)).filter((i) => i >= 0);
+      const hub = ids[0];
+      const ring = ids.slice(1).sort((x, y) => nodes[x].ang - nodes[y].ang);
+      ring.forEach((id, k) => {
+        if (k % 2 === 0 || rand() < 0.4) edges.push({ a: hub, b: id, inter: false }); // spokes
+        if (rand() < 0.75) edges.push({ a: id, b: ring[(k + 1) % ring.length], inter: false }); // rim
+      });
+    });
+    for (let k = 0; k < 5; k++) {
+      const c1 = k % 2 === 0 ? 0 : 1;
+      const c2 = c1 + 1;
+      const pick = (ci: number) => {
+        const ids = nodes.map((n, i) => (n.c === ci && !n.hub ? i : -1)).filter((i) => i >= 0);
+        return ids[Math.floor(rand() * ids.length)];
+      };
+      const a = pick(c1);
+      const b = pick(c2);
+      if (!has(a, b)) edges.push({ a, b, inter: true });
+    }
+    const nbrs = nodes.map((_, i) => edges.flatMap((e) => (e.a === i ? [e.b] : e.b === i ? [e.a] : [])));
+    let msgs: { from: number; to: number; start: number; hops: number }[] = [];
+    let nextSpawn = 0;
+    const pos = (i: number, t: number, w: number, h: number) => {
+      const n = nodes[i];
+      const c = C[n.c];
+      const cx = (c.cx + Math.sin(t * 0.21 + c.ph) * 0.035) * w;
+      const cy = (c.cy + Math.cos(t * 0.17 + c.ph) * 0.07) * h;
+      if (n.hub) return [cx + Math.sin(t * 0.6 + n.ph) * 2, cy + Math.cos(t * 0.5 + n.ph) * 2];
+      const R = c.r * Math.min(h, w * 0.42) * (n.rad + Math.sin(t * 0.7 + n.ph) * 0.12); // breathing; fits narrow cards
+      const ang = n.ang + t * c.spin;
+      return [cx + Math.cos(ang) * R * 1.15, cy + Math.sin(ang) * R];
+    };
+    return {
+      draw(ctx, w, h, t) {
+        if (t > nextSpawn) {
+          const from = Math.floor(rand() * nodes.length);
+          if (nbrs[from].length) msgs.push({ from, to: nbrs[from][Math.floor(rand() * nbrs[from].length)], start: t, hops: 0 });
+          nextSpawn = t + 0.9;
+        }
+        const P_ = nodes.map((_, i) => pos(i, t, w, h));
+        for (const e of edges) {
+          const [x1, y1] = P_[e.a];
+          const [x2, y2] = P_[e.b];
+          ctx.lineWidth = e.inter ? 1.1 : 1.3;
+          ctx.strokeStyle = e.inter ? P.muted : P.accent;
+          ctx.globalAlpha = e.inter ? 0.45 : 0.32;
+          ctx.setLineDash(e.inter ? [4, 4] : []);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        const next: typeof msgs = [];
+        for (const m of msgs) {
+          const k = (t - m.start) / 1.6;
+          if (k >= 1) {
+            nodes[m.to].flash = t;
+            if (m.hops < 2 && rand() < 0.55 && nbrs[m.to].length)
+              next.push({ from: m.to, to: nbrs[m.to][Math.floor(rand() * nbrs[m.to].length)], start: t, hops: m.hops + 1 });
+            continue;
+          }
+          next.push(m);
+          const [x1, y1] = P_[m.from];
+          const [x2, y2] = P_[m.to];
+          const e = ease(k);
+          ctx.globalAlpha = 0.95;
+          ctx.fillStyle = P.gold;
+          dot(ctx, x1 + (x2 - x1) * e, y1 + (y2 - y1) * e, 3);
+        }
+        msgs = next.slice(-30);
+        nodes.forEach((n, i) => {
+          const [x, y] = P_[i];
+          const f = clamp(1 - (t - n.flash) / 1.4);
+          if (f > 0) {
+            ctx.globalAlpha = 0.25 * f;
+            ctx.fillStyle = P.gold;
+            dot(ctx, x, y, 7 + 10 * f);
+          }
+          ctx.globalAlpha = 1;
+          if (n.hub) {
+            ctx.fillStyle = P.bg;
+            dot(ctx, x, y, 7.5);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = f > 0.3 ? P.gold : P.accent;
+            ctx.beginPath();
+            ctx.arc(x, y, 7.5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = f > 0.3 ? P.gold : P.accent;
+            dot(ctx, x, y, 3.2);
+          } else {
+            ctx.fillStyle = f > 0.3 ? P.gold : P.accent;
+            dot(ctx, x, y, 4);
+          }
+        });
+        ctx.globalAlpha = 1;
+      },
+    };
+  }
+
+  /* ---------- flow: noise → shape ---------- */
+  function flowScene(rand: () => number): Scene {
+    const M = 170;
+    const gauss = () => Math.sqrt(-2 * Math.log(rand() + 1e-9)) * Math.cos(2 * Math.PI * rand());
+    const shapes = [
+      (u: number) => [Math.cos(u * 2 * Math.PI) * 0.3, Math.sin(u * 2 * Math.PI) * 0.3], // ring
+      (u: number) => {
+        // two moons
+        const a = (u < 0.5 ? u * 2 : (u - 0.5) * 2) * Math.PI;
+        return u < 0.5 ? [Math.cos(a) * 0.28 - 0.12, -Math.sin(a) * 0.28 + 0.07] : [Math.cos(a) * 0.28 + 0.12, Math.sin(a) * 0.28 - 0.07];
+      },
+      (u: number) => {
+        // spiral
+        const a = u * 3.2 * Math.PI;
+        const r = 0.05 + u * 0.3;
+        return [Math.cos(a) * r, Math.sin(a) * r];
+      },
+    ];
+    const CYCLE = 6.5;
+    let parts: { z: [number, number]; x: [number, number]; bend: number }[] = [];
+    let cycle = -1;
+    const make = (c: number) => {
+      const shape = shapes[c % shapes.length];
+      parts = Array.from({ length: M }, (_, i) => {
+        const [sx, sy] = shape(i / M);
+        return {
+          z: [gauss() * 0.12, gauss() * 0.12] as [number, number],
+          x: [sx + gauss() * 0.012, sy + gauss() * 0.012] as [number, number],
+          bend: (rand() - 0.5) * 0.25,
+        };
+      });
+    };
+    return {
+      draw(ctx, w, h, t) {
+        const c = Math.floor(t / CYCLE);
+        if (c !== cycle) {
+          cycle = c;
+          make(c);
+        }
+        const local = (t % CYCLE) / CYCLE;
+        const k = ease(clamp((local - 0.08) / 0.62));
+        const fade = local > 0.88 ? 1 - (local - 0.88) / 0.12 : local < 0.06 ? local / 0.06 : 1;
+        const S = Math.min(w, h * 1.7);
+        const L = (p: [number, number], s: number) => [w * 0.24 + s * w * 0.5 + p[0] * S * 0.62, h * 0.5 + p[1] * S * 0.62];
+        const at = (q: (typeof parts)[number], s: number) => {
+          const px = q.z[0] * (1 - s) + q.x[0] * s;
+          const py = q.z[1] * (1 - s) + q.x[1] * s + Math.sin(Math.PI * s) * q.bend;
+          return L([px, py], s);
+        };
+        ctx.lineWidth = 1;
+        for (const q of parts) {
+          const [x0, y0] = at(q, Math.max(0, k - 0.12));
+          const [x1, y1] = at(q, k);
+          ctx.globalAlpha = 0.35 * fade;
+          ctx.strokeStyle = P.accent;
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x1, y1);
+          ctx.stroke();
+          ctx.globalAlpha = 0.95 * fade;
+          ctx.fillStyle = k > 0.97 ? P.gold : P.accent;
+          dot(ctx, x1, y1, 2.5);
+        }
+        ctx.globalAlpha = 1;
+      },
+    };
+  }
+
+  /* ---------- molecule: rotating ball-and-stick ---------- */
+  function moleculeScene(): Scene {
+    type Atom = { p: [number, number, number]; el: 'C' | 'O' | 'N' | 'H' };
+    const atoms: Atom[] = [];
+    const bonds: [number, number, number][] = []; // a, b, order
+    const ring = (cx: number, start: number) => {
+      const ids: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+        atoms.push({ p: [cx + Math.cos(a) * 1.4, Math.sin(a) * 1.4, 0], el: 'C' });
+        ids.push(start + i);
+      }
+      return ids;
+    };
+    const r1 = ring(-1.21, 0); // naphthalene-like fused rings
+    const r2 = ring(1.21, 6);
+    for (let i = 0; i < 6; i++) bonds.push([r1[i], r1[(i + 1) % 6], i % 2 ? 2 : 1]);
+    for (let i = 0; i < 6; i++) bonds.push([r2[i], r2[(i + 1) % 6], i % 2 ? 1 : 2]);
+    const add = (from: number, el: Atom['el'], len: number, order = 1, z = 0) => {
+      const [x, y] = atoms[from].p;
+      const cx = x < 0 ? -1.21 : 1.21;
+      const d = Math.hypot(x - cx, y) || 1;
+      atoms.push({ p: [x + ((x - cx) / d) * len, y + (y / d) * len, z], el });
+      bonds.push([from, atoms.length - 1, order]);
+      return atoms.length - 1;
+    };
+    // substituents
+    const o = add(r1[2], 'O', 1.3, 1);
+    atoms.push({ p: [atoms[o].p[0] - 0.6, atoms[o].p[1] + 0.8, 0.3], el: 'H' });
+    bonds.push([o, atoms.length - 1, 1]);
+    const n = add(r2[5], 'N', 1.35, 1);
+    atoms.push({ p: [atoms[n].p[0] + 0.9, atoms[n].p[1] - 0.5, 0.4], el: 'H' });
+    bonds.push([n, atoms.length - 1, 1]);
+    atoms.push({ p: [atoms[n].p[0] + 0.3, atoms[n].p[1] - 0.9, -0.6], el: 'H' });
+    bonds.push([n, atoms.length - 1, 1]);
+    add(r1[4], 'O', 1.25, 2);
+    // (r1[0]/r2[2] and r1[5]/r2[3] are the shared atoms of the fused rings)
+    [r1[1], r1[3], r2[0], r2[1], r2[4]].forEach((a) => add(a, 'H', 1.0, 1, 0));
+
+    const radius = { C: 0.42, O: 0.42, N: 0.42, H: 0.24 };
+    return {
+      draw(ctx, w, h, t) {
+        const ay = t * 0.45;
+        const ax = 0.5 + Math.sin(t * 0.3) * 0.35;
+        const S = Math.min(w / 11, h / 7.6);
+        const proj = atoms.map(({ p: [x, y, z] }) => {
+          const x1 = x * Math.cos(ay) + z * Math.sin(ay);
+          const z1 = -x * Math.sin(ay) + z * Math.cos(ay);
+          const y1 = y * Math.cos(ax) - z1 * Math.sin(ax);
+          const z2 = y * Math.sin(ax) + z1 * Math.cos(ax);
+          const s = 14 / (14 + z2);
+          return { x: w / 2 + x1 * S * s, y: h / 2 + y1 * S * s, z: z2, s };
+        });
+        const color = (el: Atom['el']) => (el === 'O' ? P.accent : el === 'N' ? P.gold : el === 'H' ? P.muted : P.text);
+        // bonds behind atoms, sorted far → near
+        const order = bonds.map((b, i) => ({ i, z: (proj[b[0]].z + proj[b[1]].z) / 2 })).sort((a, b) => b.z - a.z);
+        ctx.lineCap = 'round';
+        for (const { i } of order) {
+          const [a, b, k] = bonds[i];
+          const A = proj[a];
+          const B = proj[b];
+          ctx.strokeStyle = P.muted;
+          ctx.globalAlpha = 0.6 + 0.08 * (1 - (A.z + B.z) / 4);
+          ctx.lineWidth = 2.2 * A.s;
+          if (k === 2) {
+            const dx = B.y - A.y;
+            const dy = A.x - B.x;
+            const L = Math.hypot(dx, dy) || 1;
+            for (const sgn of [-1, 1]) {
+              ctx.beginPath();
+              ctx.moveTo(A.x + (dx / L) * 2.4 * sgn, A.y + (dy / L) * 2.4 * sgn);
+              ctx.lineTo(B.x + (dx / L) * 2.4 * sgn, B.y + (dy / L) * 2.4 * sgn);
+              ctx.stroke();
+            }
+          } else {
+            ctx.beginPath();
+            ctx.moveTo(A.x, A.y);
+            ctx.lineTo(B.x, B.y);
+            ctx.stroke();
+          }
+        }
+        const ids = atoms.map((_, i) => i).sort((a, b) => proj[b].z - proj[a].z);
+        for (const i of ids) {
+          const q = proj[i];
+          const r = radius[atoms[i].el] * S * 0.62 * q.s;
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = color(atoms[i].el);
+          dot(ctx, q.x, q.y, r);
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = P.bg;
+          dot(ctx, q.x - r * 0.3, q.y - r * 0.3, r * 0.35); // highlight
+        }
+        ctx.globalAlpha = 1;
+      },
+    };
+  }
+
+  /* ---------- proof: tree assembled from axioms to ∎ ---------- */
+  function proofScene(rand: () => number): Scene {
+    const SYMS = ['∀x', '∃y', 'p→q', 'A⊢B', 'λx', '¬p', 'x=y', 'n+1', '∑', '⊤'];
+    type Node = { x: number; y: number; kids: number[]; depth: number; label: string };
+    let nodes: Node[] = [];
+    let cycle = -1;
+    const CYCLE = 7;
+    const build = () => {
+      nodes = [];
+      const leaves = 5 + Math.floor(rand() * 3);
+      let level = Array.from({ length: leaves }, (_, i) => {
+        nodes.push({ x: (i + 0.5) / leaves, y: 0.86, kids: [], depth: 0, label: SYMS[Math.floor(rand() * SYMS.length)] });
+        return nodes.length - 1;
+      });
+      let d = 1;
+      while (level.length > 1) {
+        const next: number[] = [];
+        for (let i = 0; i < level.length; ) {
+          const take = level.length - i >= 2 && rand() < 0.75 ? 2 : 1;
+          const kids = level.slice(i, i + take);
+          i += take;
+          const x = kids.reduce((s, k) => s + nodes[k].x, 0) / kids.length;
+          nodes.push({ x, y: 0, kids, depth: d, label: '' });
+          next.push(nodes.length - 1);
+        }
+        level = next;
+        d++;
+      }
+      const maxD = d - 1;
+      nodes.forEach((n) => (n.y = 0.86 - (n.depth / Math.max(1, maxD)) * 0.7));
+    };
+    return {
+      draw(ctx, w, h, t) {
+        const c = Math.floor(t / CYCLE);
+        if (c !== cycle) {
+          cycle = c;
+          build();
+        }
+        const local = t % CYCLE;
+        const maxD = Math.max(...nodes.map((n) => n.depth));
+        const fade = local > CYCLE - 0.8 ? (CYCLE - local) / 0.8 : 1;
+        const shown = (n: Node) => clamp((local - 0.3 - n.depth * 0.9) / 0.6);
+        const X = (x: number) => w * 0.08 + x * w * 0.84;
+        ctx.lineWidth = 1.4;
+        ctx.font = `${Math.round(Math.min(15, h / 11))}px 'EB Garamond', serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        for (const n of nodes) {
+          const s = shown(n);
+          if (s <= 0) continue;
+          for (const k of n.kids) {
+            const kid = nodes[k];
+            // inference line: from child up to parent, drawn progressively
+            ctx.globalAlpha = 0.5 * fade;
+            ctx.strokeStyle = P.accent;
+            ctx.beginPath();
+            ctx.moveTo(X(kid.x), kid.y * h - 9);
+            ctx.lineTo(X(kid.x) + (X(n.x) - X(kid.x)) * s, kid.y * h - 9 + (n.y * h + 9 - (kid.y * h - 9)) * s);
+            ctx.stroke();
+          }
+        }
+        for (const n of nodes) {
+          const s = shown(n);
+          if (s <= 0) continue;
+          const isRoot = n.depth === maxD;
+          ctx.globalAlpha = s * fade;
+          if (n.depth === 0) {
+            ctx.fillStyle = P.text;
+            ctx.fillText(n.label, X(n.x), n.y * h);
+          } else if (isRoot) {
+            ctx.fillStyle = P.gold;
+            dot(ctx, X(n.x), n.y * h, 11 * s);
+            ctx.fillStyle = P.bg;
+            ctx.fillText('∎', X(n.x), n.y * h + 1);
+          } else {
+            // rule bar, as in natural deduction
+            ctx.strokeStyle = P.text;
+            ctx.beginPath();
+            ctx.moveTo(X(n.x) - 16, n.y * h);
+            ctx.lineTo(X(n.x) + 16, n.y * h);
+            ctx.stroke();
+            ctx.fillStyle = P.accent;
+            dot(ctx, X(n.x), n.y * h, 2.4);
+          }
+        }
+        ctx.globalAlpha = 1;
+      },
+    };
+  }
+
+  /* ---------- search: exploring reasoning paths ---------- */
+  function searchScene(rand: () => number): Scene {
+    const LAYERS = 6;
+    let layers: number[][] = []; // y positions per layer
+    let path: number[] = [];
+    let cycle = -1;
+    const CYCLE = 7.5;
+    const build = () => {
+      layers = Array.from({ length: LAYERS }, (_, l) => {
+        const n = l === 0 || l === LAYERS - 1 ? 1 : 3 + Math.floor(rand() * 2);
+        return Array.from({ length: n }, (_, i) => (n === 1 ? 0.5 : 0.18 + (i / (n - 1)) * 0.64 + (rand() - 0.5) * 0.06));
+      });
+      path = layers.map((ys) => Math.floor(rand() * ys.length));
+    };
+    return {
+      draw(ctx, w, h, t) {
+        const c = Math.floor(t / CYCLE);
+        if (c !== cycle) {
+          cycle = c;
+          build();
+        }
+        const local = t % CYCLE;
+        const fade = local > CYCLE - 0.8 ? (CYCLE - local) / 0.8 : 1;
+        const X = (l: number) => w * 0.09 + (l / (LAYERS - 1)) * w * 0.82;
+        const step = 0.95;
+        ctx.lineWidth = 1.2;
+        for (let l = 0; l < LAYERS - 1; l++) {
+          const tl = local - 0.3 - l * step; // time since this layer started expanding
+          if (tl <= 0) continue;
+          const from = path[l];
+          layers[l + 1].forEach((y2, j) => {
+            const chosen = j === path[l + 1];
+            const grow = clamp(tl / 0.45);
+            const x1 = X(l);
+            const y1 = layers[l][from] * h;
+            const x2 = X(l) + (X(l + 1) - X(l)) * grow;
+            const yy = y1 + (y2 * h - y1) * grow;
+            // explored edges fade after the choice; the chosen one turns solid
+            const decided = tl > 0.65;
+            ctx.strokeStyle = chosen && decided ? P.accent : P.muted;
+            ctx.globalAlpha = (chosen && decided ? 0.95 : decided ? 0.12 : 0.4) * fade;
+            ctx.lineWidth = chosen && decided ? 2.2 : 1.1;
+            ctx.setLineDash(chosen && decided ? [] : [3, 4]);
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, yy);
+            ctx.stroke();
+          });
+        }
+        ctx.setLineDash([]);
+        layers.forEach((ys, l) => {
+          ys.forEach((y, i) => {
+            const reached = l === 0 || local - 0.3 - (l - 1) * step > 0.45;
+            if (!reached) return;
+            const onPath = i === path[l] && (l === 0 || local - 0.3 - (l - 1) * step > 0.65);
+            const last = l === LAYERS - 1 && onPath;
+            ctx.globalAlpha = (onPath ? 1 : 0.35) * fade;
+            ctx.fillStyle = last ? P.gold : onPath ? P.accent : P.muted;
+            dot(ctx, X(l), y * h, last ? 8 : onPath ? 5 : 3.5);
+          });
+        });
+        ctx.globalAlpha = 1;
+      },
+    };
+  }
+
+  function init(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const kind = canvas.dataset.kind!;
+    const rand = rng(canvas.dataset.seed ?? kind);
+    const scene =
+      kind === 'flow'
+        ? flowScene(rand)
+        : kind === 'molecule'
+          ? moleculeScene()
+          : kind === 'proof'
+            ? proofScene(rand)
+            : kind === 'search'
+              ? searchScene(rand)
+              : graphScene(rand);
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let w = 0;
+    let h = 0;
+    let running = false;
+    let raf = 0;
+    const t0 = performance.now() - rand() * 3000;
+    const frame = (stillAt?: number) => {
+      ctx.clearRect(0, 0, w, h);
+      scene.draw(ctx, w, h, stillAt ?? (performance.now() - t0) / 1000);
+    };
+    const loop = () => {
+      frame();
+      if (running) raf = requestAnimationFrame(loop);
+    };
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const r = canvas.getBoundingClientRect();
+      w = r.width;
+      h = r.height;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (!running) frame(reduce ? 4.5 : undefined);
+    };
+    new ResizeObserver(resize).observe(canvas);
+    new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !reduce && !running) {
+        running = true;
+        raf = requestAnimationFrame(loop);
+      } else if (!e.isIntersecting) {
+        running = false;
+        cancelAnimationFrame(raf);
+      }
+    }).observe(canvas);
+    const recolor = () => {
+      P = palette();
+      if (!running) frame(reduce ? 4.5 : undefined);
+    };
+    window.addEventListener('themechange', recolor);
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor);
+  }
+
+  document.querySelectorAll<HTMLCanvasElement>('.area-anim canvas').forEach(init);
+</script>
+
+<style>
+  .area-anim {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-elev); /* explicit, so it stays plain when the surrounding tile turns red */
+  }
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+</style>

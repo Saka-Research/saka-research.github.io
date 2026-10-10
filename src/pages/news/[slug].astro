@@ -1,0 +1,57 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import Icon from '../../components/Icon.astro';
+import { getNews, formatDate, type News } from '../../lib/content';
+
+export async function getStaticPaths() {
+  const all = await getNews();
+  return all.map((item, i) => ({
+    params: { slug: item.id },
+    props: { item, newer: all[i - 1], older: all[i + 1] },
+  }));
+}
+
+const { item, newer, older } = Astro.props as { item: News; newer?: News; older?: News };
+const { Content } = await render(item);
+---
+
+<Base title={item.data.title} description={item.data.summary}>
+  <article class="container narrow">
+    <PageHeader title={item.data.title} crumbs={[{ label: 'News', href: '/news/' }]}>
+      <p class="date"><Icon name="calendar" size={14} /> {formatDate(item.data.date)}</p>
+    </PageHeader>
+    <div class="prose" data-reveal>
+      <Content />
+    </div>
+    <nav class="pager" aria-label="More news">
+      {newer ? <a href={`/news/${newer.id}/`}>← {newer.data.title}</a> : <span />}
+      {older ? <a href={`/news/${older.id}/`} class="right">{older.data.title} →</a> : <span />}
+    </nav>
+  </article>
+</Base>
+
+<style>
+  .date {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .pager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 0.9rem;
+  }
+  .right {
+    text-align: right;
+    justify-self: end;
+  }
+</style>

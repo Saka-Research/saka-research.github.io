@@ -1,0 +1,11 @@
+---
+title: "Flock: A Knowledge Graph Foundation Model via Learning on Random Walks"
+authors: ["Jinwoo Kim", "Xingyue Huang", "Krzysztof Olejniczak", "Kyungbin Min", "Michael M. Bronstein", "Seunghoon Hong", "İsmail İlkan Ceylan"]
+venue: "ICLR 2026"
+date: 2026-04-23
+abstract: "We study the problem of zero-shot link prediction on knowledge graphs (KGs), which requires models to generalize to novel entities and novel relations. Knowledge graph foundation models (KGFMs) address this task by enforcing equivariance over both nodes and relations, which enables them to learn structural properties of nodes and relations that transfer to novel KGs with similar structure. However, the conventional notion of deterministic equivariance inherently limits the expressive power of KGFMs, as it prevents them from distinguishing relations that are structurally similar but semantically distinct. To overcome this limitation, we propose to leverage probabilistic node-relation equivariance, which preserves equivariance in distribution while using structured randomness to break symmetries at inference time. Building on this principle, we present Flock, a KGFM that iteratively samples random walks, encodes them into sequences, embeds them with a sequence model, and aggregates node and relation representations through learned pooling. Flock respects probabilistic node-relation equivariance and, crucially, is a universal approximator for isomorphism-invariant link-level functions over KGs. Empirically, Flock perfectly solves our new diagnostic dataset Petals on which current KGFMs fail, and achieves state-of-the-art performance on entity and relation prediction tasks across 54 KGs from diverse domains. Code is available at https://github.com/jw9730/flock."
+areas: ["graphs-relational-learning"]
+arxiv: "2510.01510"
+pdf: https://arxiv.org/pdf/2510.01510
+featured: true
+---

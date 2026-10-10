@@ -1,0 +1,167 @@
+---
+// Interactive particle network: drifting nodes that link up when close and
+// gently gather around the cursor. Pauses when off-screen and respects
+// prefers-reduced-motion (renders a single still frame).
+---
+
+<canvas class="network-canvas" aria-hidden="true"></canvas>
+
+<script>
+  type Node = { x: number; y: number; vx: number; vy: number; r: number };
+
+  function init(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const LINK_DIST = 130;
+    const MOUSE_DIST = 180;
+    const MAX_SPEED = 0.7;
+    let nodes: Node[] = [];
+    let w = 0;
+    let h = 0;
+    let running = false;
+    let raf = 0;
+    const mouse = { x: -9999, y: -9999, active: false };
+
+    const colors = () => {
+      const s = getComputedStyle(document.documentElement);
+      return {
+        accent: s.getPropertyValue('--accent').trim() || '#b23a2e',
+        accent2: s.getPropertyValue('--gold').trim() || '#d9a913',
+      };
+    };
+    let palette = colors();
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      w = rect.width;
+      h = rect.height;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const count = Math.round(Math.min(110, (w * h) / 9000));
+      nodes = Array.from({ length: count }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.35,
+        vy: (Math.random() - 0.5) * 0.35,
+        r: Math.random() * 1.6 + 0.8,
+      }));
+    }
+
+    function step() {
+      ctx!.clearRect(0, 0, w, h);
+
+      for (const n of nodes) {
+        if (mouse.active) {
+          const dx = mouse.x - n.x;
+          const dy = mouse.y - n.y;
+          const d = Math.hypot(dx, dy);
+          if (d < MOUSE_DIST && d > 1) {
+            const f = (1 - d / MOUSE_DIST) * 0.008;
+            n.vx += (dx / d) * f;
+            n.vy += (dy / d) * f;
+          }
+        }
+        n.vx *= 0.985;
+        n.vy *= 0.985;
+        // keep a minimum drift so the field never freezes
+        if (Math.abs(n.vx) + Math.abs(n.vy) < 0.15) {
+          n.vx += (Math.random() - 0.5) * 0.05;
+          n.vy += (Math.random() - 0.5) * 0.05;
+        }
+        // cap the speed so nodes glide rather than dart towards the cursor
+        const sp = Math.hypot(n.vx, n.vy);
+        if (sp > MAX_SPEED) {
+          n.vx *= MAX_SPEED / sp;
+          n.vy *= MAX_SPEED / sp;
+        }
+        n.x += n.vx;
+        n.y += n.vy;
+        if (n.x < 0 || n.x > w) n.vx *= -1;
+        if (n.y < 0 || n.y > h) n.vy *= -1;
+        n.x = Math.max(0, Math.min(w, n.x));
+        n.y = Math.max(0, Math.min(h, n.y));
+      }
+
+      ctx!.lineWidth = 1;
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        for (let j = i + 1; j < nodes.length; j++) {
+          const b = nodes[j];
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < LINK_DIST) {
+            ctx!.globalAlpha = (1 - d / LINK_DIST) * 0.35;
+            ctx!.strokeStyle = palette.accent;
+            ctx!.beginPath();
+            ctx!.moveTo(a.x, a.y);
+            ctx!.lineTo(b.x, b.y);
+            ctx!.stroke();
+          }
+        }
+      }
+
+      for (const n of nodes) {
+        const near = mouse.active && Math.hypot(mouse.x - n.x, mouse.y - n.y) < MOUSE_DIST;
+        ctx!.globalAlpha = near ? 0.95 : 0.6;
+        ctx!.fillStyle = near ? palette.accent2 : palette.accent;
+        ctx!.beginPath();
+        ctx!.arc(n.x, n.y, near ? n.r + 0.8 : n.r, 0, Math.PI * 2);
+        ctx!.fill();
+      }
+      ctx!.globalAlpha = 1;
+
+      if (running) raf = requestAnimationFrame(step);
+    }
+
+    function start() {
+      if (running || reduceMotion) return;
+      running = true;
+      raf = requestAnimationFrame(step);
+    }
+    function stop() {
+      running = false;
+      cancelAnimationFrame(raf);
+    }
+
+    resize();
+    step(); // first frame (also the only frame with reduced motion)
+
+    new ResizeObserver(() => {
+      resize();
+      if (!running) step();
+    }).observe(canvas);
+
+    new IntersectionObserver(([entry]) => (entry.isIntersecting ? start() : stop())).observe(canvas);
+
+    const host = canvas.parentElement ?? canvas;
+    host.addEventListener('pointermove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+      mouse.active = true;
+    });
+    host.addEventListener('pointerleave', () => (mouse.active = false));
+
+    const recolor = () => {
+      palette = colors();
+      if (!running) step();
+    };
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor);
+    window.addEventListener('themechange', recolor); // fired by the theme toggle in Base.astro
+  }
+
+  document.querySelectorAll<HTMLCanvasElement>('.network-canvas').forEach(init);
+</script>
+
+<style>
+  .network-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+</style>

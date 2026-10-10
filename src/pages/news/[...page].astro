@@ -1,0 +1,49 @@
+---
+import type { GetStaticPathsOptions, Page } from 'astro';
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import NewsItem from '../../components/NewsItem.astro';
+import { SITE } from '../../site.config';
+import { getNews, type News } from '../../lib/content';
+
+export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
+  return paginate(await getNews(), { pageSize: SITE.newsPerPage });
+}
+
+const { page } = Astro.props as { page: Page<News> };
+const title = page.currentPage === 1 ? 'News' : `News (Page ${page.currentPage})`;
+---
+
+<Base title={title} description={`News from ${SITE.name}.`}>
+  <section class="container narrow">
+    <PageHeader title="News" subtitle="All the news from the group." />
+    <div>
+      {page.data.map((n, i) => <NewsItem item={n} delay={i * 0.04} />)}
+    </div>
+    {
+      page.lastPage > 1 && (
+        <nav class="pager" aria-label="News pages">
+          {page.url.prev ? <a href={page.url.prev}>← Newer</a> : <span />}
+          <span class="muted">
+            Page {page.currentPage} of {page.lastPage}
+          </span>
+          {page.url.next ? <a href={page.url.next}>Older →</a> : <span />}
+        </nav>
+      )
+    }
+    <p class="more muted">Looking for older posts? See the <a href="/archives/">news archive</a> or subscribe via <a href="/rss.xml">RSS</a>.</p>
+  </section>
+</Base>
+
+<style>
+  .pager {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 28px;
+    font-size: 0.9rem;
+  }
+  .more {
+    margin-top: 32px;
+    font-size: 0.9rem;
+  }
+</style>

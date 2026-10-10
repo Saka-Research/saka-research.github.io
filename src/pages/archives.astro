@@ -1,0 +1,65 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHeader from '../components/PageHeader.astro';
+import NewsItem from '../components/NewsItem.astro';
+import { getNews } from '../lib/content';
+
+const news = await getNews();
+// year → month → posts (newest first; Map keeps insertion order)
+const tree = new Map<number, Map<string, typeof news>>();
+for (const n of news) {
+  const y = n.data.date.getUTCFullYear();
+  const m = n.data.date.toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' });
+  if (!tree.has(y)) tree.set(y, new Map());
+  const months = tree.get(y)!;
+  months.set(m, [...(months.get(m) ?? []), n]);
+}
+const count = (months: Map<string, typeof news>) => [...months.values()].reduce((s, l) => s + l.length, 0);
+---
+
+<Base title="News archive" description="News posts grouped by year.">
+  <section class="container narrow">
+    <PageHeader title="News archive" subtitle="News posts grouped by year." />
+    {
+      [...tree].map(([year, months]) => (
+        <section class="year">
+          <h2 data-reveal>
+            {year} <sup>{count(months)}</sup>
+          </h2>
+          {[...months].map(([month, items]) => (
+            <div class="month">
+              <h3 data-reveal>
+                {month} <sup>{items.length}</sup>
+              </h3>
+              {items.map((n) => (
+                <NewsItem item={n} />
+              ))}
+            </div>
+          ))}
+        </section>
+      ))
+    }
+  </section>
+</Base>
+
+<style>
+  .year h2 {
+    margin: 36px 0 8px;
+    font-size: 2rem;
+  }
+  .month h3 {
+    margin: 18px 0 0;
+    font-size: 1rem;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--muted);
+  }
+  sup {
+    font-size: 0.6em;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .month :global(.news-item:first-of-type) {
+    border-top: 0;
+  }
+</style>

@@ -1,0 +1,149 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import MemberCard from '../../components/MemberCard.astro';
+import PubItem from '../../components/PubItem.astro';
+import AreaAnimation from '../../components/AreaAnimation.astro';
+import { getResearch, getTeam, getPublications, getMemberNames, type Research } from '../../lib/content';
+
+export async function getStaticPaths() {
+  const areas = await getResearch();
+  return areas.map((area) => ({ params: { slug: area.id }, props: { area } }));
+}
+
+const { area } = Astro.props as { area: Research };
+const { Content } = await render(area);
+const { current } = await getTeam();
+const people = current.filter((m) => m.data.areas.some((r) => r.id === area.id));
+const pubs = (await getPublications()).filter((p) => p.data.areas.some((r) => r.id === area.id));
+const selected = [...pubs.filter((p) => p.data.featured), ...pubs.filter((p) => !p.data.featured)].slice(0, 6);
+const members = await getMemberNames();
+---
+
+<Base title={area.data.title} description={area.data.summary}>
+  <section class="container">
+    <PageHeader title={area.data.title} subtitle={area.data.summary} crumbs={[{ label: 'Research', href: '/research/' }]} />
+
+    <div class="card intro" data-reveal>
+      <div class="banner">
+        {area.data.image ? <img src={area.data.image} alt="" /> : <AreaAnimation kind={area.data.animation} seed={area.id} />}
+      </div>
+      <div class="prose"><Content /></div>
+
+      {
+        area.data.directions.length > 0 && (
+          <>
+            <h2>Key Directions</h2>
+            <ul class="directions">
+              {area.data.directions.map((d) => (
+                <li>
+                  <strong>{d.name}:</strong> {d.text}
+                </li>
+              ))}
+            </ul>
+          </>
+        )
+      }
+      <div class="tags">
+        {area.data.tags.map((t) => <span class="tag">{t}</span>)}
+      </div>
+    </div>
+
+    {
+      people.length > 0 && (
+        <>
+          <div class="section-head" data-reveal>
+            <h2>People</h2>
+          </div>
+          <div class="people">
+            {people.map((m, i) => (
+              <a href={`/team/#${m.id}`} class="plain">
+                <MemberCard member={m} compact delay={i * 0.04} />
+              </a>
+            ))}
+          </div>
+        </>
+      )
+    }
+
+    {
+      selected.length > 0 && (
+        <>
+          <div class="section-head" data-reveal>
+            <h2>Selected Publications</h2>
+            <a href="/publications/">All publications →</a>
+          </div>
+          <div class="pubs">
+            {selected.map((p, i) => (
+              <PubItem pub={p} members={members} compact delay={(i % 2) * 0.06} />
+            ))}
+          </div>
+        </>
+      )
+    }
+  </section>
+</Base>
+
+<style>
+  .intro {
+    padding: 0 28px 24px;
+  }
+  .banner {
+    height: clamp(180px, 26vw, 300px);
+    margin: 0 -28px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0;
+  }
+  .intro > :global(*) {
+    position: relative;
+  }
+  .intro h2 {
+    margin: 1.6em 0 0.6em;
+    font-size: 1.6rem;
+  }
+  .intro .prose {
+    max-width: none;
+  }
+  .directions {
+    padding-left: 1.2em;
+    margin: 0;
+  }
+  .directions li + li {
+    margin-top: 6px;
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 22px;
+  }
+  .people {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px;
+  }
+  .plain {
+    background: none;
+    color: inherit;
+  }
+  /* People tiles are single links: fill red on hover, like other link tiles */
+  .plain:hover :global(.card) {
+    background-color: var(--fill);
+    border-color: var(--fill);
+    transform: translateY(-2px);
+  }
+  .plain:hover :global(.card :is(h3, p)) {
+    color: var(--on-fill);
+  }
+  .pubs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+</style>

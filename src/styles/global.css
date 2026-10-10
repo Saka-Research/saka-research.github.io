@@ -1,0 +1,332 @@
+/* Palette inspired by the Saka goldfinch logo: washi paper, sumi ink, the bird's red face,
+   its yellow wing bar and the green of the cherry twig. Fonts: Inter for text (as on the personal
+   website), EB Garamond for headings (close to the serif of the logo). */
+:root {
+  --bg: #ffffff;
+  --bg-elev: #ffffff;
+  --text: #1a1d29;
+  --muted: #5f6472;
+  --line: #e2dbcd;
+  --accent: #b23a2e; /* goldfinch red / vermilion */
+  --accent-2: #5d7a31; /* leaf green */
+  --gold: #d9a913; /* wing yellow, decorative only */
+  --glow: rgba(178, 58, 46, 0.09);
+  --sun: #c8473a;
+  --fill: #b23a2e; /* solid red for selected / hovered elements */
+  --on-fill: #ffffff;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'EB Garamond', 'Times New Roman', Times, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --maxw: 1040px;
+  --maxw-text: 720px;
+  --radius: 6px;
+  color-scheme: light;
+}
+/* Content gets wider on wide screens */
+@media (min-width: 1300px) {
+  :root {
+    --maxw: 1200px;
+  }
+}
+@media (min-width: 1600px) {
+  :root {
+    --maxw: 1320px;
+  }
+}
+
+/* Dark mode: follows the system unless the visitor picked a theme with the toggle */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #141311;
+    --bg-elev: #1c1b18;
+    --text: #efe9dc;
+    --muted: #a7a196;
+    --line: #2f2c26;
+    --accent: #e5705f;
+    --accent-2: #a3c06a;
+    --gold: #e8c03a;
+    --glow: rgba(229, 112, 95, 0.12);
+    --sun: #a5392e;
+    --fill: #b8382c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #141311;
+  --bg-elev: #1c1b18;
+  --text: #efe9dc;
+  --muted: #a7a196;
+  --line: #2f2c26;
+  --accent: #e5705f;
+  --accent-2: #a3c06a;
+  --gold: #e8c03a;
+  --glow: rgba(229, 112, 95, 0.12);
+  --sun: #a5392e;
+  --fill: #b8382c;
+  color-scheme: dark;
+}
+
+/* Smooth cross-page transitions (no JavaScript needed) */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.35s;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+h1 {
+  font-weight: 500;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size 0.25s ease;
+}
+a:hover {
+  background-size: 100% 1px;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 20px;
+}
+.narrow {
+  max-width: var(--maxw-text);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Shared building blocks */
+.card {
+  position: relative;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  color: var(--text);
+  overflow: hidden;
+  transition:
+    border-color 0.25s ease,
+    background-color 0.25s ease,
+    transform 0.25s ease;
+}
+a.card {
+  display: block;
+  background-image: none;
+}
+a.card:hover,
+.card.hoverable:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+/* Link tiles fill with solid red on hover (an image/animation area inside keeps its own background) */
+a.card:hover {
+  background-color: var(--fill);
+  border-color: var(--fill);
+  color: var(--on-fill);
+}
+/* !important: page-level styles set muted/accent text colours on these elements */
+a.card:hover :is(h2, h3, p, .cta, a) {
+  color: var(--on-fill) !important;
+}
+a.card:hover .tag {
+  color: var(--on-fill) !important;
+  border-color: color-mix(in srgb, var(--on-fill) 55%, transparent);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--bg-elev) 80%, transparent);
+  color: var(--text);
+  font-size: 0.9rem;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+a.pill {
+  background-image: none;
+}
+.pill:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.pill.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-elev);
+}
+
+.tag {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  border: 1.5px solid color-mix(in srgb, var(--accent-2) 60%, transparent);
+  background: color-mix(in srgb, var(--accent-2) 10%, transparent);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 64px 0 18px;
+}
+.section-head h2 {
+  margin: 0;
+  font-size: 1.9rem;
+}
+/* Short vermilion brush-stroke above section titles */
+.rule::before,
+.section-head h2::before {
+  content: '';
+  display: block;
+  width: 44px;
+  height: 4px;
+  margin-bottom: 14px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* Rendered Markdown */
+.prose {
+  max-width: var(--maxw-text);
+}
+.prose h2 {
+  margin: 2em 0 0.6em;
+  font-size: 1.4rem;
+}
+.prose h3 {
+  margin: 1.6em 0 0.5em;
+  font-size: 1.15rem;
+}
+.prose ul,
+.prose ol {
+  padding-left: 1.2em;
+}
+.prose li + li {
+  margin-top: 4px;
+}
+.prose blockquote {
+  margin: 1.2em 0;
+  padding: 2px 18px;
+  border-left: 4px solid var(--accent);
+  color: var(--muted);
+}
+
+/* Scroll-reveal: elements with [data-reveal] fade up when they enter the viewport */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0s);
+}
+[data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+.no-js [data-reveal] {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}
