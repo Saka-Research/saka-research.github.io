@@ -5,9 +5,10 @@
 //   molecule – a rotating ball-and-stick molecule
 //   proof    – a proof tree being assembled from axioms up to ∎
 //   search   – a reasoning search exploring paths and committing to one
+//   lean     – a Lean proof typed line by line, each tactic reshaping the goal's syntax tree
 // Animations pause when off-screen and show a single still frame with prefers-reduced-motion.
 interface Props {
-  kind: 'graph' | 'flow' | 'molecule' | 'proof' | 'search';
+  kind: 'graph' | 'flow' | 'molecule' | 'proof' | 'search' | 'lean';
   seed?: string;
 }
 const { kind, seed = kind } = Astro.props;
@@ -20,7 +21,7 @@ const { kind, seed = kind } = Astro.props;
 <script>
   type Ctx = CanvasRenderingContext2D;
   type Palette = { accent: string; gold: string; green: string; text: string; muted: string; line: string; bg: string };
-  type Scene = { draw: (ctx: Ctx, w: number, h: number, t: number) => void };
+  type Scene = { draw: (ctx: Ctx, w: number, h: number, t: number) => void; still?: number }; // `still`: time shown with reduced motion
 
   const css = (name: string, fallback: string) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
@@ -500,6 +501,261 @@ const { kind, seed = kind } = Astro.props;
     };
   }
 
+  /* ---------- lean: a proof typed line by line, each tactic reshaping the goal's syntax tree ---------- */
+  function leanScene(): Scene {
+    const CODE = [
+      'example (x y : ℝ) (h : x^2 ≠ y^2) :',
+      '    (x + y)^2 + (x - y)^2',
+      '      = 2 * (x^4 - y^4) / (x^2 - y^2) := by',
+      '  have h1 : x^2 - y^2 ≠ 0 := sub_ne_zero.mpr h',
+      '  rw [eq_div_iff h1]',
+      '  ring_nf',
+    ];
+    const KEYWORDS = new Set(['example', 'have', 'by', 'rw', 'ring_nf']);
+    const LEMMAS = new Set(['sub_ne_zero.mpr', 'eq_div_iff']);
+    const MONO = "'JetBrains Mono', ui-monospace, monospace";
+
+    // Goal ASTs. Nodes keep their id across goals, so a tactic moves, adds, and removes nodes between trees.
+    type T = { id: string; label: string; kids: T[] };
+    const n = (id: string, label: string, ...kids: T[]): T => ({ id, label, kids });
+    const pow = (id: string, base: string, e: string) => n(id, '^', n(id + 'b', base), n(id + 'e', e));
+    const lhs = n(
+      'L', '+',
+      n('s1', '^', n('a', '+', n('ax', 'x'), n('ay', 'y')), n('s1e', '2')),
+      n('s2', '^', n('b', '−', n('bx', 'x'), n('by', 'y')), n('s2e', '2')),
+    );
+    const num = (p: string) => n(p + 'N', '*', n(p + 'c', '2'), n(p + 'd', '−', pow(p + 'x4', 'x', '4'), pow(p + 'y4', 'y', '4')));
+    const den = n('D', '−', pow('dx', 'x', '2'), pow('dy', 'y', '2'));
+    const goals = [
+      n('eq', '=', lhs, n('R', '/', num(''), den)), // the statement
+      n('eq', '=', n('M', '*', lhs, den), num('')), // after rw [eq_div_iff h1]
+      n('eq', '=', num('nf'), num('')), // after ring_nf: both sides in the same normal form
+    ];
+    const subtree = (t: T): string[] => [t.id, ...t.kids.flatMap(subtree)];
+    const denIds = new Set(subtree(den));
+    const LEVELS = 5; // deepest goal tree, so the tree keeps its scale between goals
+
+    type Pos = { x: number; y: number; depth: number; label: string; op: boolean };
+    const layout = (root: T, x0: number, x1: number, y0: number, dy: number) => {
+      const nodes = new Map<string, Pos>();
+      const edges: string[] = [];
+      const count = (t: T): number => (t.kids.length ? t.kids.reduce((s, k) => s + count(k), 0) : 1);
+      const total = count(root);
+      let leaf = 0;
+      const place = (t: T, depth: number): number => {
+        const x = t.kids.length
+          ? t.kids.reduce((s, k) => (edges.push(`${t.id}>${k.id}`), s + place(k, depth + 1)), 0) / t.kids.length
+          : x0 + ((leaf++ + 0.5) / total) * (x1 - x0);
+        nodes.set(t.id, { x, y: y0 + depth * dy, depth, label: t.label, op: t.kids.length > 0 });
+        return x;
+      };
+      place(root, 0);
+      return { nodes, edges };
+    };
+    type Layout = ReturnType<typeof layout>;
+    // Nodes in both trees move; the others fade out (only in A) or in (only in B).
+    const blend = (A: Layout, B: Layout, k: number) => {
+      const nodes = new Map<string, Pos & { a: number }>();
+      for (const [id, p] of A.nodes) {
+        const q = B.nodes.get(id);
+        nodes.set(id, q ? { ...q, x: p.x + (q.x - p.x) * k, y: p.y + (q.y - p.y) * k, a: 1 } : { ...p, a: 1 - k });
+      }
+      for (const [id, q] of B.nodes) if (!A.nodes.has(id)) nodes.set(id, { ...q, a: k });
+      const inB = new Set(B.edges);
+      const edges = [
+        ...A.edges.map((e) => ({ e, a: inB.has(e) ? 1 : 1 - k })),
+        ...B.edges.filter((e) => !A.edges.includes(e)).map((e) => ({ e, a: k })),
+      ];
+      return { nodes, edges };
+    };
+
+    // Timeline: each line is typed, then its tactic acts on the tree.
+    const CPS = 38; // characters typed per second
+    const typed: { start: number; end: number }[] = [];
+    let clock = 0.3;
+    const type = (i: number) => {
+      typed[i] = { start: clock, end: clock + CODE[i].length / CPS };
+      clock = typed[i].end;
+    };
+    type(0);
+    type(1);
+    type(2);
+    const parse = clock + 0.2;
+    clock = parse + 1.6;
+    type(3);
+    const mark = clock + 0.15; // have h1: the denominator is known to be nonzero
+    clock = mark + 1.0;
+    type(4);
+    const rw = clock + 0.15; // the denominator moves to the left-hand side
+    clock = rw + 1.8;
+    type(5);
+    const ring = clock + 0.15; // the left-hand side is normalised into the right-hand side
+    const same = ring + 1.3;
+    const collapse = same + 0.8;
+    const CYCLE = collapse + 4.2;
+    const SPEED = 0.6; // playback rate of the whole timeline above
+    const activeUntil = [typed[0].end, typed[1].end, typed[2].end, mark + 0.6, rw + 1.4, same + 0.7];
+
+    const backOut = (x: number) => 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2);
+    // Draw in the base colour, crossfading to gold as `m` goes from 0 to 1.
+    const tone = (ctx: Ctx, a: number, m: number, base: string, draw: (color: string) => void) => {
+      if (m < 1) {
+        ctx.globalAlpha = a * (1 - m);
+        draw(base);
+      }
+      if (m > 0) {
+        ctx.globalAlpha = a * m;
+        draw(P.gold);
+      }
+    };
+
+    return {
+      still: (parse + 1.4) / SPEED,
+      draw(ctx, w, h, t) {
+        const local = (t * SPEED) % CYCLE;
+        const fade = local > CYCLE - 0.8 ? (CYCLE - local) / 0.8 : 1;
+
+        /* code box */
+        ctx.font = `100px ${MONO}`;
+        const widest = Math.max(...CODE.map((l) => ctx.measureText(l).width)) / 100;
+        const pad = 12;
+        const fs = Math.min(13.5, (w * 0.46 - 2 * pad) / widest, (h * 0.82 - 2 * pad) / (1.55 * CODE.length));
+        const lh = fs * 1.55;
+        const boxW = widest * fs + 2 * pad;
+        const boxH = lh * CODE.length + 2 * pad;
+        const bx = Math.max(10, w * 0.03);
+        const by = (h - boxH) / 2;
+        ctx.fillStyle = P.line;
+        ctx.globalAlpha = 0.3 * fade;
+        ctx.beginPath();
+        ctx.roundRect(bx, by, boxW, boxH, 8);
+        ctx.fill();
+        ctx.globalAlpha = fade;
+        ctx.strokeStyle = P.line;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.font = `${fs}px ${MONO}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        CODE.forEach((line, i) => {
+          const { start, end } = typed[i];
+          if (local < start) return;
+          const y = by + pad + lh * (i + 0.5);
+          if (local < activeUntil[i]) {
+            ctx.globalAlpha = 0.1 * fade;
+            ctx.fillStyle = P.accent;
+            ctx.fillRect(bx + 1, y - lh / 2, boxW - 2, lh);
+          }
+          const shown = line.slice(0, Math.floor(((local - start) / (end - start)) * line.length));
+          let x = bx + pad;
+          ctx.globalAlpha = fade;
+          for (const tok of shown.match(/[A-Za-z_][\w.']*|\s+|./gu) ?? []) {
+            ctx.fillStyle = KEYWORDS.has(tok) ? P.accent : LEMMAS.has(tok) ? P.green : P.text;
+            ctx.fillText(tok, x, y);
+            x += ctx.measureText(tok).width;
+          }
+          if (local < end) {
+            ctx.fillStyle = P.accent;
+            ctx.fillRect(x + 1, y - fs * 0.55, 1.5, fs * 1.1);
+          }
+        });
+
+        /* goal tree */
+        const tx0 = bx + boxW + Math.max(16, w * 0.04);
+        const tx1 = w - Math.max(10, w * 0.03);
+        const dy = (h * 0.74) / LEVELS;
+        const L = goals.map((g) => layout(g, tx0, tx1, h * 0.13, dy));
+        const r = clamp(Math.min(dy * 0.3, ((tx1 - tx0) / 15) * 0.42), 5, 11);
+        const cx = (tx0 + tx1) / 2;
+        const cy = h * 0.42;
+        if (local < parse) return;
+        const tree =
+          local < rw
+            ? blend(L[0], L[0], 0)
+            : local < ring
+              ? blend(L[0], L[1], ease(clamp((local - rw) / 1.4)))
+              : blend(L[1], L[2], ease(clamp((local - ring) / 1.3)));
+        if (local < rw) for (const p of tree.nodes.values()) p.a = clamp((local - parse - p.depth * 0.2) / 0.35);
+        const gone = ease(clamp((local - collapse) / 0.7));
+        for (const p of tree.nodes.values()) {
+          p.x += (cx - p.x) * gone;
+          p.y += (cy - p.y) * gone;
+          p.a *= (1 - gone) * fade;
+        }
+        const denMark = clamp((local - mark) / 0.5) * (1 - clamp((local - rw - 0.9) / 0.5));
+        const allMark = clamp((local - same) / 0.3);
+        const markOf = (id: string) => Math.max(denIds.has(id) ? denMark : 0, allMark);
+
+        ctx.lineWidth = 1.3;
+        for (const { e, a } of tree.edges) {
+          const [pid, kid] = e.split('>');
+          const p = tree.nodes.get(pid)!;
+          const q = tree.nodes.get(kid)!;
+          tone(ctx, 0.5 * a * Math.min(p.a, q.a), Math.min(markOf(pid), markOf(kid)), P.accent, (c) => {
+            ctx.strokeStyle = c;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(q.x, q.y);
+            ctx.stroke();
+          });
+        }
+        ctx.font = `${Math.round(r * 1.25)}px ${MONO}`;
+        ctx.textAlign = 'center';
+        for (const [id, p] of tree.nodes) {
+          if (p.a <= 0.01) continue;
+          const m = markOf(id);
+          ctx.globalAlpha = p.a;
+          ctx.fillStyle = P.bg;
+          dot(ctx, p.x, p.y, p.op ? r : r * 0.8);
+          if (p.op)
+            tone(ctx, p.a, m, P.accent, (c) => {
+              ctx.strokeStyle = c;
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+              ctx.stroke();
+            });
+          tone(ctx, p.a, m, P.text, (c) => {
+            ctx.fillStyle = c;
+            ctx.fillText(p.label, p.x, p.y + 1);
+          });
+        }
+        const D = tree.nodes.get('D');
+        if (D && denMark > 0) {
+          ctx.globalAlpha = denMark * D.a;
+          ctx.fillStyle = P.gold;
+          ctx.textAlign = 'left';
+          ctx.fillText('≠ 0', D.x + r + 4, D.y - r);
+        }
+
+        /* goal closed */
+        const grow = clamp((local - collapse - 0.45) / 0.5);
+        if (grow > 0) {
+          const R = Math.min(h * 0.17, (tx1 - tx0) * 0.12) * backOut(grow);
+          ctx.globalAlpha = fade;
+          ctx.fillStyle = P.gold;
+          dot(ctx, cx, cy, R);
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = R * 0.16;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(cx - R * 0.42, cy + R * 0.02);
+          ctx.lineTo(cx - R * 0.12, cy + R * 0.32);
+          ctx.lineTo(cx + R * 0.45, cy - R * 0.3);
+          ctx.stroke();
+          ctx.lineCap = 'butt';
+          const size = Math.round(Math.min(24, h / 8));
+          ctx.globalAlpha = clamp((local - collapse - 0.9) / 0.5) * fade;
+          ctx.fillStyle = P.text;
+          ctx.font = `${size}px 'EB Garamond', serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText('Problem solved!', cx, cy + Math.min(h * 0.17, (tx1 - tx0) * 0.12) + size * 1.1);
+        }
+        ctx.globalAlpha = 1;
+      },
+    };
+  }
+
   function init(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -514,7 +770,9 @@ const { kind, seed = kind } = Astro.props;
             ? proofScene(rand)
             : kind === 'search'
               ? searchScene(rand)
-              : graphScene(rand);
+              : kind === 'lean'
+                ? leanScene()
+                : graphScene(rand);
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let w = 0;
     let h = 0;
@@ -537,7 +795,7 @@ const { kind, seed = kind } = Astro.props;
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (!running) frame(reduce ? 4.5 : undefined);
+      if (!running) frame(reduce ? (scene.still ?? 4.5) : undefined);
     };
     new ResizeObserver(resize).observe(canvas);
     new IntersectionObserver(([e]) => {
@@ -551,7 +809,7 @@ const { kind, seed = kind } = Astro.props;
     }).observe(canvas);
     const recolor = () => {
       P = palette();
-      if (!running) frame(reduce ? 4.5 : undefined);
+      if (!running) frame(reduce ? (scene.still ?? 4.5) : undefined);
     };
     window.addEventListener('themechange', recolor);
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor);

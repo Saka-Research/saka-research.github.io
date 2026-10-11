@@ -1,17 +1,21 @@
 ---
 title: AI for Mathematics
-summary: Machine learning for formal mathematics and theorem proving.
-tags: [theorem-proving, formal-mathematics, llms, symmetry]
+summary: Structure-aware machine learning for formal theorem proving in Lean, and broader mathematical reasoning.
+tags: [theorem-proving, Lean, formal-mathematics, llms, symmetry, reasoning]
 order: 4
 animation: proof
+bannerAnimation: lean
 directions:
-  - name: Formal theorem proving
-    text: Making LLM-based provers robust to superficial changes in how a problem is stated, by building in the right symmetries.
-  - name: "[TODO: direction]"
-    text: "[TODO: one-sentence description]"
+  - name: Structural symmetries for Lean theorem proving
+    text: Defining and formalising the symmetries that models generating Lean proofs should respect, e.g. related to semantic equivalence of theorems and of proof states.
+  - name: Structural biases for formal provers
+    text: Overcoming the limits of large language models in formal proof, such as syntactic sensitivity and weak state tracking, by building in the right structural biases.
+  - name: Alternative modelling paradigms
+    text: Replacing text-based Transformers with architectures that respect the symmetries of mathematical expressions and generalise across proof concepts.
 ---
 
-[TODO: review this text.]
+Formal languages such as [Lean](https://lean-lang.org/) made proofs machine-checkable: a theorem is established only when every step is correct. Treating theorem proving as the generation of that code has given large language models a real route into formalising mathematics.
+However, unlike most languages, natural or programming, Lean is very strict and allows little flexibility, because every line of an argument has to be mathematically sound. That creates a hard environment for LLMs, which in other domains can use exactly that freedom.
+Even as these models improve, they still read theorems and proofs as text. Small changes in wording can throw them off, and that syntactic sensitivity can get in the way of the structures and symmetries underneath a statement.
 
-Mathematics is an ideal testbed for reasoning: proofs can be checked formally, and problems come with rich structure.
-We study how learning systems can become reliable partners for formal mathematics.
+We study how that underlying structure can be built into the proving process, so that the resulting systems carry the structural biases we want and respect symmetries that mathematicians recognise naturally.

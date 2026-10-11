@@ -14,6 +14,7 @@ const news = defineCollection({
 });
 
 // Research areas: one Markdown file per area → /research/<file-name>/
+const animations = ['graph', 'flow', 'molecule', 'proof', 'search', 'lean'] as const;
 const research = defineCollection({
   loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/research' }),
   schema: z.object({
@@ -23,7 +24,8 @@ const research = defineCollection({
     tags: z.array(z.string()).default([]),
     directions: z.array(z.object({ name: z.string(), text: z.string() })).default([]), // "Key directions" list
     image: z.string().optional(), // e.g. /research/my-figure.png (put the file in public/research/); replaces the animation
-    animation: z.enum(['graph', 'flow', 'molecule', 'proof', 'search']).default('graph'), // animated thumbnail, see components/AreaAnimation.astro
+    animation: z.enum(animations).default('graph'), // animated thumbnail, see components/AreaAnimation.astro
+    bannerAnimation: z.enum(animations).optional(), // banner on the area's own page; defaults to `animation`
     order: z.number().default(100), // lower comes first
     draft: z.boolean().default(false),
   }),

@@ -27,7 +27,7 @@ const members = await getMemberNames();
 
     <div class="card intro" data-reveal>
       <div class="banner">
-        {area.data.image ? <img src={area.data.image} alt="" /> : <AreaAnimation kind={area.data.animation} seed={area.id} />}
+        {area.data.image ? <img src={area.data.image} alt="" /> : <AreaAnimation kind={area.data.bannerAnimation ?? area.data.animation} seed={area.id} />}
       </div>
       <div class="prose"><Content /></div>
 
