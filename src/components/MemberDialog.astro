@@ -1,0 +1,279 @@
+---
+import Avatar from './Avatar.astro';
+import Icon from './Icon.astro';
+import { formatMonth, type Member, type Publication, type Research } from '../lib/content';
+
+interface Props {
+  member: Member;
+  areas: Research[];
+  pubs: Publication[]; // this member's most recent papers
+}
+const { member, areas, pubs } = Astro.props;
+const { name, role, affiliation, since, photo, bio, cosupervisors, links } = member.data;
+
+const contacts = [
+  links.website && { name: 'website', href: links.website, label: 'Website' },
+  links.scholar && { name: 'scholar', href: links.scholar, label: 'Google Scholar' },
+  links.github && { name: 'github', href: links.github, label: 'GitHub' },
+  links.x && { name: 'x', href: links.x, label: 'X' },
+  links.linkedin && { name: 'linkedin', href: links.linkedin, label: 'LinkedIn' },
+  links.email && { name: 'email', href: `mailto:${links.email}`, label: 'Email' },
+].filter(Boolean) as { name: 'website' | 'scholar' | 'github' | 'x' | 'linkedin' | 'email'; href: string; label: string }[];
+
+const pubLink = (p: Publication) =>
+  p.data.pdf ?? (p.data.arxiv ? `https://arxiv.org/abs/${p.data.arxiv}` : p.data.doi ? `https://doi.org/${p.data.doi}` : p.data.project);
+---
+
+<dialog class="member-dialog" id={`member-${member.id}`} data-member-dialog={member.id} aria-labelledby={`member-${member.id}-name`}>
+  <div class="inner">
+    <form method="dialog">
+      <button class="close" aria-label="Close">×</button>
+    </form>
+
+    <header>
+      <Avatar name={name} photo={photo} size={104} />
+      <div>
+        <h2 id={`member-${member.id}-name`}>{name}</h2>
+        <p class="role">{role}</p>
+        {(affiliation || since) && <p class="aff">{[affiliation, since && `since ${since}`].filter(Boolean).join(' · ')}</p>}
+      </div>
+    </header>
+
+    <p class="bio">{bio}</p>
+
+    {
+      cosupervisors.length > 0 && (
+        <section>
+          <h3>Co-supervised with</h3>
+          <ul class="plain-list">
+            {cosupervisors.map((c) => (
+              <li>{c}</li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    {
+      areas.length > 0 && (
+        <section>
+          <h3>Research areas</h3>
+          <div class="tags">
+            {areas.map((a) => (
+              <a class="tag" href={`/research/${a.id}/`}>
+                {a.data.title}
+              </a>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    {
+      pubs.length > 0 && (
+        <section>
+          <h3>Recent papers</h3>
+          <ul class="pubs">
+            {pubs.map((p) => {
+              const href = pubLink(p);
+              return (
+                <li>
+                  {href ? <a href={href}>{p.data.title}</a> : p.data.title}
+                  <span>
+                    {p.data.venue} · {formatMonth(p.data.date)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )
+    }
+
+    {
+      contacts.length > 0 && (
+        <div class="contacts">
+          {contacts.map((c) => (
+            <a href={c.href}>
+              <Icon name={c.name} size={15} /> {c.label}
+            </a>
+          ))}
+        </div>
+      )
+    }
+  </div>
+</dialog>
+
+<script>
+  const dialogFor = (id: string | undefined) =>
+    id ? document.querySelector<HTMLDialogElement>(`[data-member-dialog="${CSS.escape(id)}"]`) : null;
+
+  document.querySelectorAll<HTMLElement>('[data-member-card]').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      if ((e.target as Element).closest('a')) return; // contact icons keep working as links
+      dialogFor(card.dataset.memberCard)?.showModal();
+    });
+  });
+
+  document.querySelectorAll<HTMLDialogElement>('[data-member-dialog]').forEach((dialog) => {
+    // A click on the dialog element itself (not its content) is a click on the backdrop.
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) dialog.close();
+    });
+  });
+
+  // Links such as /team/#jane-doe (used on research pages) open that person's details.
+  dialogFor(decodeURIComponent(location.hash.slice(1)))?.showModal();
+</script>
+
+<style>
+  .member-dialog {
+    width: min(620px, calc(100% - 32px));
+    max-height: min(86vh, 780px);
+    padding: 0;
+    border: 1.5px solid var(--line);
+    border-radius: calc(var(--radius) * 2);
+    background: var(--bg-elev);
+    color: var(--text);
+    box-shadow: 0 24px 60px rgb(0 0 0 / 0.25);
+  }
+  .member-dialog[open] {
+    animation: pop 0.22s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .member-dialog::backdrop {
+    background: rgb(0 0 0 / 0.45);
+    backdrop-filter: blur(2px);
+  }
+  :global(html:has(.member-dialog[open])) {
+    overflow: hidden;
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+  .inner {
+    position: relative;
+    padding: 28px 30px 24px;
+  }
+  .close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--muted);
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .close:hover {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding-right: 28px;
+  }
+  h2 {
+    margin: 0;
+    font-size: 1.8rem;
+    line-height: 1.1;
+  }
+  p {
+    margin: 0;
+  }
+  .role {
+    margin-top: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .aff {
+    margin-top: 2px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .bio {
+    margin-top: 20px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  section {
+    margin-top: 20px;
+  }
+  h3 {
+    margin: 0 0 8px;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .plain-list,
+  .pubs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.92rem;
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .tags a {
+    background-image: none;
+  }
+  .tags a:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .pubs li + li {
+    margin-top: 10px;
+  }
+  .pubs a {
+    color: var(--text);
+  }
+  .pubs a:hover {
+    color: var(--accent);
+  }
+  .pubs span {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .contacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-size: 0.88rem;
+  }
+  .contacts a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  @media (max-width: 520px) {
+    .inner {
+      padding: 24px 20px 20px;
+    }
+    header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 14px;
+    }
+  }
+</style>

@@ -21,18 +21,39 @@ const icons = [
 ].filter(Boolean) as { name: 'website' | 'scholar' | 'github' | 'x' | 'linkedin' | 'email'; href: string; label: string }[];
 ---
 
-<article class:list={['card', 'hoverable', 'member', { compact }]} id={member.id} data-reveal style={`--reveal-delay:${delay}s`}>
+<article
+  class:list={['card', 'member', { compact, hoverable: compact }]}
+  id={member.id}
+  data-member-card={compact ? undefined : member.id}
+  data-reveal
+  style={`--reveal-delay:${delay}s`}
+>
   <Avatar name={name} photo={photo} size={compact ? 56 : 92} />
   <div class="body">
-    <h3>{name}</h3>
+    <h3>
+      {
+        compact ? (
+          name
+        ) : (
+          <button type="button" class="open" data-open-member={member.id} aria-haspopup="dialog">
+            {name}
+          </button>
+        )
+      }
+    </h3>
     <p class="role">{role}</p>
     {!compact && (affiliation || since) && <p class="aff">{[affiliation, since && `since ${since}`].filter(Boolean).join(' · ')}</p>}
     {!compact && <p class="bio">{bio}</p>}
     {
       !compact && cosupervisors.length > 0 && (
-        <p class="cosup">
-          Co-supervised with: <span>{cosupervisors.join(', ')}</span>
-        </p>
+        <div class="cosup">
+          Co-supervised with:
+          <ul>
+            {cosupervisors.map((c) => (
+              <li>{c}</li>
+            ))}
+          </ul>
+        </div>
       )
     }
   </div>
@@ -101,15 +122,26 @@ const icons = [
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .member:hover .bio {
-    -webkit-line-clamp: unset;
+  [data-member-card] {
+    cursor: pointer;
+  }
+  .open {
+    font: inherit;
+    color: inherit;
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
   }
   .cosup {
     margin-top: 10px;
     font-size: 0.78rem;
     color: var(--muted);
   }
-  .cosup span {
+  .cosup ul {
+    margin: 2px 0 0;
+    padding: 0;
+    list-style: none;
     color: var(--text);
   }
   .icons {

@@ -2,12 +2,20 @@
 import Base from '../layouts/Base.astro';
 import PageHeader from '../components/PageHeader.astro';
 import MemberCard from '../components/MemberCard.astro';
+import MemberDialog from '../components/MemberDialog.astro';
 import { SITE } from '../site.config';
-import { getTeam } from '../lib/content';
+import { getTeam, getResearch, getPublications, normalizeName, type Member } from '../lib/content';
 import { COLLABORATORS } from '../data/collaborators';
 import Icon from '../components/Icon.astro';
 
 const { current, alumni } = await getTeam();
+const research = await getResearch();
+const publications = await getPublications();
+const areasOf = (m: Member) => research.filter((r) => m.data.areas.some((a) => a.id === r.id));
+const recentPubsOf = (m: Member) => {
+  const names = new Set([m.data.name, ...m.data.aliases].map(normalizeName));
+  return publications.filter((p) => p.data.authors.some((a) => names.has(normalizeName(a)))).slice(0, 3);
+};
 ---
 
 <Base title="Team" description={`Meet the researchers behind ${SITE.name}.`}>
@@ -17,6 +25,7 @@ const { current, alumni } = await getTeam();
     <div class="grid">
       {current.map((m, i) => <MemberCard member={m} delay={(i % 4) * 0.05} />)}
     </div>
+    {current.map((m) => <MemberDialog member={m} areas={areasOf(m)} pubs={recentPubsOf(m)} />)}
 
     <div class="section-head" data-reveal>
       <h2>Long-term collaborators</h2>
