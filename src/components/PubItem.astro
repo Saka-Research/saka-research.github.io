@@ -23,7 +23,7 @@ const links = [
 ].filter(Boolean) as { label: string; href: string }[];
 ---
 
-<article class="card pub" data-reveal style={`--reveal-delay:${delay}s`} data-pub>
+<article class="card pub" id={`pub-${pub.id}`} data-reveal style={`--reveal-delay:${delay}s`} data-pub>
   <h3>{links[0] ? <a href={links[0].href}>{title}</a> : title}</h3>
   <p class="authors">
     {
