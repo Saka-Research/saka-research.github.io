@@ -5,16 +5,14 @@ tags: [graph-foundation-models, knowledge-graphs, relational-databases, gnn-theo
 order: 1
 animation: graph
 directions:
-  - name: Graph foundation models
-    text: Single models that transfer across graphs, feature spaces, and tasks, built on equivariance and on shared interfaces such as random walks.
-  - name: Knowledge graphs
-    text: Inductive and zero-shot link prediction over knowledge graphs and relational hypergraphs, knowledge base completion with box embeddings, and complex query answering.
-  - name: Relational deep learning
-    text: Learning from relational databases and tables, including LLM agents that write interpretable SQL feature programs, and tabular foundation models for graphs.
+  - name: Generalization across graphs
+    text: "What architectures transfer across feature and label spaces, and which experience or prior knowledge enables transfer? ([↓](#pub-wander,equivariance-everywhere,flock,hyper,graphs-to-the-table))"
+  - name: Probabilistic equivariance
+    text: "Softening the deterministic equivariance requirement of typical GNNs to a probabilistic one, for higher expressiveness and more flexibility. ([↓](#pub-flock,wander,random-node-initialization))"
+  - name: Agentic frameworks
+    text: "Reasoning over a relational structure from outside of it, instead of using the structure as the computational graph. ([↓](#pub-relagent))"
   - name: Expressive power and theory
-    text: Characterising graph neural networks through Weisfeiler-Leman tests, homomorphism counts, random node initialisation, and zero-one laws.
-  - name: New architectures
-    text: Cooperative GNNs, shortest path networks, planar graph networks, and learning on large graphs via intersecting communities.
+    text: "What graph neural networks and graph foundation models can and cannot express, and how they behave in the limit. ([↓](#pub-kgfm-expressivity,relational-weisfeiler-leman,homomorphism-basis,homomorphism-structural-encodings,almost-surely-constant-gnns,random-node-initialization))"
 ---
 
 What is the solubility of a molecule? How do certain genes interact with diseases? Which movies might users prefer

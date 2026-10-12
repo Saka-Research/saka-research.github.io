@@ -18,7 +18,11 @@ const { current } = await getTeam();
 const people = current.filter((m) => m.data.areas.some((r) => r.id === area.id));
 const pubs = (await getPublications()).filter((p) => p.data.areas.some((r) => r.id === area.id));
 // Papers referenced in the text with ([↓](#pub-<file-name>)) or ([↓](#pub-<a>,<b>,<c>)) are always listed; the rest is filled up with featured papers.
-const refs = new Set([...(area.body ?? '').matchAll(/#pub-([\w,-]+)/g)].flatMap((m) => m[1].split(',')));
+const refText = [area.body ?? '', ...area.data.directions.map((d) => d.text)].join(' ');
+const refs = new Set([...refText.matchAll(/#pub-([\w,-]+)/g)].flatMap((m) => m[1].split(',')));
+// Direction texts may contain the same ([↓](#pub-…)) arrow links as the Markdown text
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const linkify = (t: string) => esc(t).replace(/\[([^\]]+)\]\((#pub-[\w,-]+)\)/g, '<a href="$2">$1</a>');
 const referenced = pubs.filter((p) => refs.has(p.id));
 const others = [...pubs.filter((p) => p.data.featured), ...pubs.filter((p) => !p.data.featured)].filter((p) => !refs.has(p.id));
 const selected = [...referenced, ...others.slice(0, Math.max(0, 6 - referenced.length))].sort(
@@ -44,7 +48,7 @@ const members = await getMemberNames();
             <ul class="directions">
               {area.data.directions.map((d) => (
                 <li>
-                  <strong>{d.name}:</strong> {d.text}
+                  <strong>{d.name}:</strong> <span set:html={linkify(d.text)} />
                 </li>
               ))}
             </ul>
@@ -111,7 +115,7 @@ const members = await getMemberNames();
     targets[0].scrollIntoView({ behavior: 'smooth', block: targets.length > 1 ? 'start' : 'center' });
     setTimeout(() => targets.forEach(flash), 450);
   };
-  document.querySelectorAll<HTMLAnchorElement>('.prose a[href^="#pub-"]').forEach((a) => {
+  document.querySelectorAll<HTMLAnchorElement>('.intro a[href^="#pub-"]').forEach((a) => {
     const targets = targetsOf(a.hash);
     if (!targets.length) return;
     a.classList.add('pub-ref');
@@ -185,7 +189,7 @@ const members = await getMemberNames();
   .plain:hover :global(.card :is(h3, p)) {
     color: var(--on-fill);
   }
-  .prose :global(a.pub-ref) {
+  .intro :global(a.pub-ref) {
     display: inline-block;
     padding: 0 1px;
     font-weight: 600;
@@ -193,7 +197,7 @@ const members = await getMemberNames();
     background-image: none;
     transition: transform 0.2s ease;
   }
-  .prose :global(a.pub-ref:hover) {
+  .intro :global(a.pub-ref:hover) {
     transform: translateY(2px);
   }
   /* Briefly fill a paper red when it is reached from an arrow link */
