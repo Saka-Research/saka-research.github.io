@@ -17,8 +17,8 @@ const { Content } = await render(area);
 const { current } = await getTeam();
 const people = current.filter((m) => m.data.areas.some((r) => r.id === area.id));
 const pubs = (await getPublications()).filter((p) => p.data.areas.some((r) => r.id === area.id));
-// Papers referenced in the text with ([↓](#pub-<file-name>)) are always listed; the rest is filled up with featured papers.
-const refs = new Set([...(area.body ?? '').matchAll(/#pub-([\w-]+)/g)].map((m) => m[1]));
+// Papers referenced in the text with ([↓](#pub-<file-name>)) or ([↓](#pub-<a>,<b>,<c>)) are always listed; the rest is filled up with featured papers.
+const refs = new Set([...(area.body ?? '').matchAll(/#pub-([\w,-]+)/g)].flatMap((m) => m[1].split(',')));
 const referenced = pubs.filter((p) => refs.has(p.id));
 const others = [...pubs.filter((p) => p.data.featured), ...pubs.filter((p) => !p.data.featured)].filter((p) => !refs.has(p.id));
 const selected = [...referenced, ...others.slice(0, Math.max(0, 6 - referenced.length))].sort(
@@ -99,22 +99,33 @@ const members = await getMemberNames();
     el.classList.add('flash');
     setTimeout(() => el.classList.remove('flash'), 1800);
   };
+  // One arrow can point to several papers: #pub-wander,flock,equivariance-everywhere
+  const targetsOf = (hash: string) =>
+    hash
+      .slice('#pub-'.length)
+      .split(',')
+      .map((id) => document.getElementById(`pub-${decodeURIComponent(id)}`))
+      .filter((el): el is HTMLElement => !!el)
+      .sort((x, y) => x.getBoundingClientRect().top - y.getBoundingClientRect().top);
+  const jump = (targets: HTMLElement[]) => {
+    targets[0].scrollIntoView({ behavior: 'smooth', block: targets.length > 1 ? 'start' : 'center' });
+    setTimeout(() => targets.forEach(flash), 450);
+  };
   document.querySelectorAll<HTMLAnchorElement>('.prose a[href^="#pub-"]').forEach((a) => {
-    const target = document.getElementById(a.hash.slice(1));
-    if (!target) return;
+    const targets = targetsOf(a.hash);
+    if (!targets.length) return;
     a.classList.add('pub-ref');
-    a.title = target.querySelector('h3')?.textContent?.trim() ?? '';
-    a.setAttribute('aria-label', `Jump to paper: ${a.title}`);
+    a.title = targets.map((t) => t.querySelector('h3')?.textContent?.trim() ?? '').join('\n');
+    a.setAttribute('aria-label', `Jump to ${targets.length > 1 ? `${targets.length} papers` : 'paper'}: ${a.title.replace(/\n/g, '; ')}`);
     a.addEventListener('click', (e) => {
       e.preventDefault();
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       history.replaceState(null, '', a.hash);
-      setTimeout(() => flash(target), 450);
+      jump(targetsOf(a.hash));
     });
   });
   if (location.hash.startsWith('#pub-')) {
-    const t = document.getElementById(location.hash.slice(1));
-    if (t) setTimeout(() => flash(t), 600);
+    const t = targetsOf(location.hash);
+    if (t.length) setTimeout(() => t.forEach(flash), 600);
   }
 </script>
 
@@ -186,6 +197,9 @@ const members = await getMemberNames();
     transform: translateY(2px);
   }
   /* Briefly fill a paper red when it is reached from an arrow link */
+  .pubs :global(.pub) {
+    scroll-margin-top: 90px; /* keep scrolled-to papers clear of the sticky header */
+  }
   .pubs :global(.pub.flash) {
     animation: pub-flash 1.8s ease;
   }
@@ -206,6 +220,7 @@ const members = await getMemberNames();
     }
   }
   .pubs {
+    scroll-margin-top: 90px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 16px;
