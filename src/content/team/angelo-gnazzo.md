@@ -9,6 +9,7 @@ cosupervisors: ["Michael Bronstein"]
 areas: ["generative-modeling", "ai-for-science"]
 links:
   website: "https://angelognazzo.github.io"
+  scholar: "https://scholar.google.com/citations?user=mCLuEosAAAAJ"
   github: "https://github.com/angelognazzo"
   x: "https://x.com/gna_ngelo"
   linkedin: "https://www.linkedin.com/in/angelognazzo"
