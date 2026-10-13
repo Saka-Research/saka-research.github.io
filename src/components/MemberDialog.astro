@@ -94,8 +94,8 @@ const pubLink = (p: Publication) =>
       contacts.length > 0 && (
         <div class="contacts">
           {contacts.map((c) => (
-            <a href={c.href}>
-              <Icon name={c.name} size={15} /> {c.label}
+            <a href={c.href} aria-label={`${name}: ${c.label}`} title={c.label}>
+              <Icon name={c.name} size={19} />
             </a>
           ))}
         </div>
@@ -259,12 +259,15 @@ const pubLink = (p: Publication) =>
     margin-top: 22px;
     padding-top: 16px;
     border-top: 1px solid var(--line);
-    font-size: 0.88rem;
   }
   .contacts a {
     display: inline-flex;
-    align-items: center;
-    gap: 6px;
+    color: var(--muted);
+    background: none;
+    transition: color 0.2s ease;
+  }
+  .contacts a:hover {
+    color: var(--accent);
   }
   @media (max-width: 520px) {
     .inner {
