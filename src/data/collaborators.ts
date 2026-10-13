@@ -13,5 +13,4 @@ export const COLLABORATORS = [
   { name: 'Floris Geerts', affiliation: 'University of Antwerp', href: scholar('SGay8u4AAAAJ') },
   { name: 'Pablo Barceló', affiliation: 'PUC Chile', href: scholar('9OH3PokAAAAJ') },
   { name: 'Matthias Lanzinger', affiliation: 'TU Wien', href: scholar('XAR1lVUAAAAJ') },
-  { name: 'Ayhan Suleymanzade', affiliation: 'EPFL', href: scholar('O-q4mhgAAAAJ') },
 ];
