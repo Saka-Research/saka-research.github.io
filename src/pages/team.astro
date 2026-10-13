@@ -56,7 +56,7 @@ const recentPubsOf = (m: Member) => {
                 <h3>{m.data.name}</h3>
                 {m.data.alumni!.period && <p class="period">{m.data.alumni!.period}</p>}
                 {m.data.alumni!.thesis && <p class="thesis">{m.data.alumni!.thesis}</p>}
-                <p class="muted">Now: {m.data.alumni!.now}</p>
+                {m.data.alumni!.now && <p class="muted">Now: {m.data.alumni!.now}</p>}
                 {m.data.alumni!.website && <a href={m.data.alumni!.website}>Website →</a>}
               </div>
             ))}

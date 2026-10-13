@@ -69,7 +69,7 @@ const team = defineCollection({
     order: z.number().default(100), // lower comes first within the same role
     alumni: z
       .object({
-        now: z.string(), // "where are they now"
+        now: z.string().optional(), // "where are they now"
         period: z.string().optional(), // e.g. "PhD, 2018–2022"
         thesis: z.string().optional(),
         website: z.string().optional(),

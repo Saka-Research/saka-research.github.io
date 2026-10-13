@@ -6,7 +6,7 @@ cosupervisors: ["Michael Bronstein"]
 areas: ["graphs-relational-learning", "ai-for-science"]
 links: {}
 alumni:
-  now: "[TODO: current position]"
+  now: "Research Scientist at EIT"
   period: "DPhil, University of Oxford"
   thesis: "Graph machine learning over biomedical knowledge graphs for drug discovery"
 ---

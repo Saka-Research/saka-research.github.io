@@ -6,7 +6,7 @@ cosupervisors: ["Michael Bronstein"]
 areas: ["graphs-relational-learning"]
 links: {}
 alumni:
-  now: "Google"
+  now: "Research Scientist at Google"
   period: "DPhil, University of Oxford"
   thesis: "Expressivity and generalization in graph machine learning"
 ---
