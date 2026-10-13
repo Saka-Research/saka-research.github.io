@@ -7,5 +7,5 @@ links:
   scholar: "https://scholar.google.com/citations?user=O-q4mhgAAAAJ"
 alumni:
   now: "PhD student at EPFL"
-  period: "Visiting Researcher"
+  period: "Visiting Researcher, Jan–Aug 2026"
 ---
