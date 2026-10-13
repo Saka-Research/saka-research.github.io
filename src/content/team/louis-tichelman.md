@@ -6,7 +6,7 @@ since: 2026
 topic: "Graph foundation models"
 bio: "Louis is a PhD student at TU Wien and AITHYRA working on graph foundation models and relational learning for the Life Sciences. He previously studied Maths in Bonn and Aachen."
 cosupervisors: ["Michael Bronstein"]
-areas: ["graphs-relational-learning"]
+areas: ["graphs-relational-learning", "llm-agents"]
 photo: /team/louis-tichelman.jpg
 links:
   scholar: "https://scholar.google.com/citations?user=JWFpiw8AAAAJ"

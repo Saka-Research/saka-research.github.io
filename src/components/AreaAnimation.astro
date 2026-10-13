@@ -6,9 +6,10 @@
 //   proof    – a proof tree being assembled from axioms up to ∎
 //   search   – a reasoning search exploring paths and committing to one
 //   lean     – a Lean proof typed line by line, each tactic reshaping the goal's syntax tree
+//   agent    – an LLM agent calling tools and models (database, code, network, molecule) and returning an answer
 // Animations pause when off-screen and show a single still frame with prefers-reduced-motion.
 interface Props {
-  kind: 'graph' | 'flow' | 'molecule' | 'proof' | 'search' | 'lean';
+  kind: 'graph' | 'flow' | 'molecule' | 'proof' | 'search' | 'lean' | 'agent';
   seed?: string;
 }
 const { kind, seed = kind } = Astro.props;
@@ -501,6 +502,217 @@ const { kind, seed = kind } = Astro.props;
     };
   }
 
+  /* ---------- agent: an LLM agent calling tools and models in turn, then returning an answer ---------- */
+  function agentScene(rand: () => number): Scene {
+    type Tool = { x: number; y: number; icon: 'db' | 'code' | 'net' | 'mol' };
+    const TOOLS: Tool[] = [
+      { x: 0.17, y: 0.3, icon: 'db' },
+      { x: 0.17, y: 0.72, icon: 'code' },
+      { x: 0.83, y: 0.3, icon: 'net' },
+      { x: 0.83, y: 0.72, icon: 'mol' },
+    ];
+    const CYCLE = 9;
+    const STEP = 1.5; // one tool call: think, send, work, return
+    const START = 0.4;
+    let cycle = -1;
+    let order: number[] = [];
+    const build = () => {
+      order = [0, 1, 2, 3].sort(() => rand() - 0.5);
+    };
+    const drawTool = (ctx: Ctx, tool: Tool, cx: number, cy: number, s: number, on: number) => {
+      ctx.strokeStyle = on > 0 ? P.accent : P.text;
+      ctx.fillStyle = on > 0 ? P.accent : P.text;
+      ctx.lineWidth = 1.4;
+      if (on > 0) {
+        ctx.save();
+        ctx.globalAlpha *= 0.15 * on;
+        ctx.fillStyle = P.gold;
+        dot(ctx, cx, cy, s * 1.45);
+        ctx.restore();
+      }
+      if (tool.icon === 'db') {
+        // database cylinder
+        const rw = s * 0.75;
+        const rh = s * 0.25;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - s * 0.55, rw, rh, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        for (const dy of [0, s * 0.55]) {
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + dy, rw, rh, 0, 0, Math.PI);
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.moveTo(cx - rw, cy - s * 0.55);
+        ctx.lineTo(cx - rw, cy + s * 0.55);
+        ctx.moveTo(cx + rw, cy - s * 0.55);
+        ctx.lineTo(cx + rw, cy + s * 0.55);
+        ctx.stroke();
+      } else if (tool.icon === 'code') {
+        // editor window with </>
+        ctx.strokeRect(cx - s, cy - s * 0.75, s * 2, s * 1.5);
+        ctx.beginPath();
+        ctx.moveTo(cx - s, cy - s * 0.4);
+        ctx.lineTo(cx + s, cy - s * 0.4);
+        ctx.stroke();
+        ctx.font = `${Math.round(s * 0.85)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('</>', cx, cy + s * 0.2);
+      } else if (tool.icon === 'net') {
+        // small neural network: 3 → 2 → 1
+        const cols = [3, 2, 1].map((n, c) =>
+          Array.from({ length: n }, (_, i) => [cx + (c - 1) * s * 0.85, cy + (i - (n - 1) / 2) * s * 0.6] as const),
+        );
+        ctx.lineWidth = 0.8;
+        ctx.globalAlpha *= 0.6;
+        for (let c = 0; c < 2; c++)
+          for (const a of cols[c])
+            for (const b of cols[c + 1]) {
+              ctx.beginPath();
+              ctx.moveTo(a[0], a[1]);
+              ctx.lineTo(b[0], b[1]);
+              ctx.stroke();
+            }
+        ctx.globalAlpha /= 0.6;
+        for (const col of cols) for (const [x, y] of col) dot(ctx, x, y, s * 0.14);
+      } else {
+        // molecule: hexagonal ring with a side chain
+        const r = s * 0.6;
+        ctx.beginPath();
+        for (let i = 0; i <= 6; i++) {
+          const a = Math.PI / 6 + (i * Math.PI) / 3;
+          const x = cx - s * 0.2 + r * Math.cos(a);
+          const y = cy + r * Math.sin(a);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.moveTo(cx - s * 0.2 + r * Math.cos(-Math.PI / 6), cy + r * Math.sin(-Math.PI / 6));
+        ctx.lineTo(cx + s * 0.9, cy - s * 0.65);
+        ctx.stroke();
+        dot(ctx, cx + s * 0.9, cy - s * 0.65, s * 0.16);
+      }
+    };
+    return {
+      still: 7.4,
+      draw(ctx, w, h, t) {
+        const c = Math.floor(t / CYCLE);
+        if (c !== cycle) {
+          cycle = c;
+          build();
+        }
+        const local = t % CYCLE;
+        const fade = local > CYCLE - 0.8 ? (CYCLE - local) / 0.8 : 1;
+        const s = Math.max(9, Math.min(h * 0.11, w * 0.06, 18));
+        const ax = w * 0.5;
+        const ay = h * 0.48;
+        const X = (x: number) => w * 0.5 + (x - 0.5) * Math.min(w, h * 2.6);
+        const done = START + order.length * STEP;
+
+        // links between the agent and its tools; the active one brightens
+        TOOLS.forEach((tool, ti) => {
+          const i = order.indexOf(ti);
+          const st = local - START - i * STEP;
+          const active = st > 0.35 && st < 1.4;
+          ctx.globalAlpha = (active ? 0.55 : 0.18) * fade;
+          ctx.strokeStyle = active ? P.accent : P.muted;
+          ctx.lineWidth = active ? 1.4 : 1;
+          ctx.setLineDash(active ? [] : [3, 4]);
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(X(tool.x), tool.y * h);
+          ctx.stroke();
+        });
+        ctx.setLineDash([]);
+
+        // packets: a call goes out, the result comes back
+        order.forEach((ti, i) => {
+          const st = local - START - i * STEP;
+          if (st < 0.35 || st > 1.4) return;
+          const tool = TOOLS[ti];
+          const out = st < 0.75;
+          const k = ease(clamp(out ? (st - 0.35) / 0.4 : (st - 1.0) / 0.4));
+          if (!out && st < 1.0) return; // tool is working
+          const [x0, y0, x1, y1] = out ? [ax, ay, X(tool.x), tool.y * h] : [X(tool.x), tool.y * h, ax, ay];
+          ctx.globalAlpha = fade;
+          ctx.fillStyle = out ? P.accent : P.gold;
+          dot(ctx, x0 + (x1 - x0) * k, y0 + (y1 - y0) * k, 3.5);
+        });
+
+        // tools
+        TOOLS.forEach((tool, ti) => {
+          const st = local - START - order.indexOf(ti) * STEP;
+          const on = st > 0.7 && st < 1.15 ? Math.sin(((st - 0.7) / 0.45) * Math.PI) : 0;
+          const used = st > 1.15;
+          ctx.globalAlpha = (used || on > 0 ? 0.95 : 0.55) * fade;
+          drawTool(ctx, tool, X(tool.x), tool.y * h, s, on);
+        });
+
+        // the agent: a small robot head with an antenna
+        const busy = local > START && local < done;
+        const hw = s * 1.35;
+        const hh = s * 1.05;
+        ctx.globalAlpha = 0.14 * fade;
+        ctx.fillStyle = P.accent;
+        dot(ctx, ax, ay, s * 2.1 * (busy ? 1 + 0.06 * Math.sin(local * 5) : 1));
+        ctx.globalAlpha = fade;
+        ctx.strokeStyle = P.accent;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay - hh);
+        ctx.lineTo(ax, ay - hh - s * 0.5);
+        ctx.stroke();
+        ctx.fillStyle = P.gold;
+        dot(ctx, ax, ay - hh - s * 0.55, s * 0.2);
+        ctx.fillStyle = P.accent;
+        ctx.beginPath();
+        ctx.roundRect(ax - hw, ay - hh, hw * 2, hh * 2, s * 0.4);
+        ctx.fill();
+        // eyes blink now and then; they glance towards the tool being called
+        const cur = order[Math.floor((local - START) / STEP)];
+        const look = busy && cur !== undefined ? Math.sign(TOOLS[cur].x - 0.5) * s * 0.15 : 0;
+        const blink = (local % 3.1) < 0.12 ? 0.25 : 1;
+        ctx.fillStyle = P.bg;
+        for (const ex of [-0.45, 0.45]) {
+          ctx.beginPath();
+          ctx.ellipse(ax + ex * hw + look, ay - hh * 0.1, s * 0.18, s * 0.22 * blink, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillRect(ax - hw * 0.35, ay + hh * 0.45, hw * 0.7, s * 0.12);
+
+        // thinking dots before each call
+        order.forEach((_, i) => {
+          const st = local - START - i * STEP;
+          if (st < 0 || st > 0.35) return;
+          for (let d = 0; d < 3; d++) {
+            ctx.globalAlpha = (0.3 + 0.7 * clamp(Math.sin((st / 0.35) * Math.PI * 2 - d))) * fade;
+            ctx.fillStyle = P.muted;
+            dot(ctx, ax + hw + s * 0.5 + d * s * 0.45, ay - hh - s * 0.3, s * 0.12);
+          }
+        });
+
+        // the answer, once every tool has been used
+        const a = clamp((local - done) / 0.5);
+        if (a > 0) {
+          const ry = Math.min(h - s * 1.1, ay + hh + s * 1.6);
+          ctx.globalAlpha = a * fade;
+          ctx.fillStyle = P.gold;
+          dot(ctx, ax, ry, s * 0.75 * ease(a));
+          ctx.strokeStyle = P.bg;
+          ctx.lineWidth = 1.8;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(ax - s * 0.32, ry);
+          ctx.lineTo(ax - s * 0.08, ry + s * 0.25);
+          ctx.lineTo(ax + s * 0.35, ry - s * 0.25);
+          ctx.stroke();
+          ctx.lineCap = 'butt';
+        }
+        ctx.globalAlpha = 1;
+      },
+    };
+  }
+
   /* ---------- lean: a proof typed line by line, each tactic reshaping the goal's syntax tree ---------- */
   function leanScene(): Scene {
     const CODE = [
@@ -772,7 +984,9 @@ const { kind, seed = kind } = Astro.props;
               ? searchScene(rand)
               : kind === 'lean'
                 ? leanScene()
-                : graphScene(rand);
+                : kind === 'agent'
+                  ? agentScene(rand)
+                  : graphScene(rand);
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let w = 0;
     let h = 0;

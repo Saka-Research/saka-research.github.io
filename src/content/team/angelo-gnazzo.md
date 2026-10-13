@@ -6,7 +6,7 @@ since: 2026
 topic: "Discrete and geometric generative modeling"
 bio: "Angelo is a PhD student at TU Wien and AITHYRA working on generative models for discrete data and on geometric approaches to generative modeling. He is also interested in agentic systems built on LLMs, which can tackle open-ended scientific problems by continually adapting to new feedback and data. He previously studied Maths at ETH Zürich."
 cosupervisors: ["Michael Bronstein"]
-areas: ["generative-modeling", "ai-for-science"]
+areas: ["generative-modeling", "ai-for-science", "llm-agents"]
 links:
   website: "https://angelognazzo.github.io"
   scholar: "https://scholar.google.com/citations?user=mCLuEosAAAAJ"

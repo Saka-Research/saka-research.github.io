@@ -14,7 +14,7 @@ const news = defineCollection({
 });
 
 // Research areas: one Markdown file per area → /research/<file-name>/
-const animations = ['graph', 'flow', 'molecule', 'proof', 'search', 'lean'] as const;
+const animations = ['graph', 'flow', 'molecule', 'proof', 'search', 'lean', 'agent'] as const;
 const research = defineCollection({
   loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/research' }),
   schema: z.object({
