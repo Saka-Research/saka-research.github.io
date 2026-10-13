@@ -1,40 +1,44 @@
 ---
 title: Generative Modeling
-summary: "Flow matching and diffusion models for discrete and structured data: making them principled, fast, and controllable, and using them for reasoning and scientific design."
+summary: Generative models that account for the structure of data and the objectives of generation, from language and molecules to scientific dynamics and reasoning.
 tags: [flow-matching, discrete-data, guidance, geometry]
 order: 2
 animation: flow
 directions:
   - name: Discrete and categorical data
-    text: "Flow matching over categorical data, from the geometry of the probability simplex to few-step generation with flow maps. ([↓](#pub-fisher-flow-matching,categorical-flow-maps))"
-  - name: Geometry and topology
-    text: "Generative models that account for the geometric and topological structure of the space the data lives on. ([↓](#pub-fisher-flow-matching,topological-flow-matching))"
-  - name: Guidance
-    text: "Steering pretrained models towards desired properties, through transport couplings, structural constraints, and goals stated in natural language. ([↓](#pub-global-transport-couplings,macroguide))"
+    text: "Continuous generative processes for categorical data, from the Fisher–Rao geometry of the probability simplex to generation in one or a few steps. ([↓](#pub-fisher-flow-matching,categorical-flow-maps))"
+  - name: Domain structure and dynamics
+    text: "Flows that incorporate the topology of the underlying domain, and the circulating and periodic dynamics of natural processes. ([↓](#pub-topological-flow-matching,curly-flow-matching))"
+  - name: Controlling generation
+    text: "Steering what a model generates, through noise–data couplings, topological guidance during sampling, and goals stated in natural language. ([↓](#pub-global-transport-couplings,macroguide))"
   - name: Generative models for reasoning
-    text: "Flow-based models that solve reasoning problems, spending more computation on harder ones and returning several valid solutions. ([↓](#pub-looped-flows))"
-  - name: Scientific applications
-    text: "Designing DNA sequences and macrocyclic molecules, and learning the dynamics of cells from population snapshots. ([↓](#pub-fisher-flow-matching,macroguide,curly-flow-matching))"
+    text: "Recurrent computation trained through denoising, spending more computation at inference and exploring several candidate solutions. ([↓](#pub-looped-flows))"
 ---
 
-We develop generative models based on flow matching and diffusion, with a particular interest in data that does not fit
-naturally into Euclidean space. Much of our work concerns discrete and categorical data, such as biological sequences, molecular graphs, and text,
-where diffusion and flow models have long lagged behind their continuous counterparts. We approach this through
-geometry, designing flows that respect the structure of the probability simplex ([↓](#pub-fisher-flow-matching)), and
-make them fast enough to generate in one or a few steps ([↓](#pub-categorical-flow-maps)). The same perspective extends
-to signals on domains with topological structure, such as brain activity on graphs
-([↓](#pub-topological-flow-matching)).
+We develop generative models that account for both the structure of the data and the objectives of generation. Our
+work combines flow matching and diffusion with ideas from geometry, topology, and optimal transport, with applications
+to language, molecular design, biological sequences, scientific dynamics, and reasoning.
 
-A second theme is guidance: steering a pretrained model towards samples with the properties we care about. We study how
-the choice of coupling affects guided generation ([↓](#pub-global-transport-couplings)), how topological constraints can
-lead a model towards rare classes of molecules such as macrocycles ([↓](#pub-macroguide)), and how objectives stated in
-natural language can be distilled into a scientific generator, using a language model as a teacher.
+Much of our work concerns discrete data, such as text, molecular graphs, and DNA sequences. Rather than generating
+tokens directly, we represent discrete objects through probabilities over their categories, which turns generation into
+a continuous process on the probability simplex. This brings the tools of continuous generative modelling to discrete
+data: geometry gives a principled way to move between distributions ([↓](#pub-fisher-flow-matching)), flow maps make it
+possible to generate in one or a few steps ([↓](#pub-categorical-flow-maps)), and existing guidance techniques can be
+reused to steer sampling towards downstream objectives.
 
-Generative models can also be used to reason. Looped models tackle harder problems by repeatedly refining a hidden
-state, but are hard to train. Looped flows recast this recurrence as a probability flow trained with denoising objectives:
-they can spend more computation on a harder problem simply by taking more steps, and can return several valid solutions
-from different noise samples, reaching state-of-the-art results on reasoning benchmarks such as ARC-AGI
-([↓](#pub-looped-flows)).
+We also study how the structure of a domain should shape generation. Flows can incorporate the topology of the
+underlying domain, accounting for relationships in signals such as brain activity on graphs
+([↓](#pub-topological-flow-matching)). In scientific dynamics, combining population snapshots with approximate velocity
+information makes it possible to learn circulating and periodic behaviour, such as the cell cycle
+([↓](#pub-curly-flow-matching)).
 
-Throughout, our work is driven by scientific applications, from designing DNA regulatory sequences and drug-like
-molecules to modelling how cells change over time from population snapshots ([↓](#pub-curly-flow-matching)).
+Another focus is controlling what a model generates. We study how the coupling between noise and data affects
+generation under classifier-free guidance ([↓](#pub-global-transport-couplings)), and develop methods that steer
+pretrained models during sampling, for instance using persistent homology to encourage the formation of large molecular
+rings and generate macrocycles ([↓](#pub-macroguide)). We also explore how objectives stated in natural language can be
+distilled into a pretrained generator, using a language model as a teacher.
+
+Finally, we view generative processes as a framework for reasoning. Training recurrent computation through denoising
+objectives allows a model to spend more computation at inference time and to explore several candidate solutions from
+different initial noise samples ([↓](#pub-looped-flows)). Ultimately, we aim to build generative models that are
+principled, efficient, and controllable, and to use them to accelerate scientific discovery.
