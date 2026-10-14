@@ -198,7 +198,71 @@ a.card:hover {
 a.card:hover :is(h2, h3, p, .cta, a) {
   color: var(--on-fill) !important;
 }
-a.card:hover .tag {
+a.card:hover /* ---------- Controls in interactive figures (e.g. on project pages) ----------
+   Buttons with class "pill". A selected tab (aria-selected / aria-checked) or a switched-on toggle
+   (aria-pressed) stays filled red with white text. */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.pills-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-right: 2px;
+}
+button.pill {
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  padding: 6px 13px;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+button.pill:hover {
+  transform: none;
+  color: var(--accent);
+  border-color: var(--fill);
+}
+.pill[aria-checked='true'],
+.pill[aria-selected='true'],
+.pill[aria-pressed='true'] {
+  background: var(--fill);
+  border-color: var(--fill);
+  color: var(--on-fill);
+}
+.pill[aria-checked='true']:hover,
+.pill[aria-selected='true']:hover,
+.pill[aria-pressed='true']:hover {
+  color: var(--on-fill);
+}
+button.pill:focus-visible {
+  outline: 2px solid var(--fill);
+  outline-offset: 2px;
+}
+/* on/off toggles get a small indicator dot */
+.pill[aria-pressed]::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  transition: background-color 0.2s ease;
+}
+.pill[aria-pressed='true']::before {
+  background: currentColor;
+}
+button.pill:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tag {
   color: var(--on-fill) !important;
   border-color: color-mix(in srgb, var(--on-fill) 55%, transparent);
 }
