@@ -10,6 +10,6 @@ links:
   scholar: "https://scholar.google.com/citations?user=goWM7VwAAAAJ"
 alumni:
   now: "Research Scientist at Google"
-  period: "DPhil, University of Oxford"
-  thesis: "Expressivity and generalization in graph machine learning"
+  period: "DPhil, 2023–2026"
+  thesis: "Toward generalist graph inference"
 ---

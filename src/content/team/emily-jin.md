@@ -8,7 +8,7 @@ areas: ["graphs-relational-learning", "ai-for-science"]
 links:
   website: "https://www.cs.ox.ac.uk/people/emily.jin/"
 alumni:
-  now: "Research Scientist at EIT"
+  now: "Research Scientist at the Ellison Institute of Technology"
   period: "DPhil, University of Oxford"
   thesis: "Graph machine learning over biomedical knowledge graphs for drug discovery"
 ---
