@@ -98,7 +98,7 @@ const publications = defineCollection({
     project: z.string().optional(),
     bibtex: z.string().optional(),
     featured: z.boolean().default(false), // highlighted on research pages
-    hero: z.enum(['walks']).optional(), // animated background behind the project page header
+    hero: z.enum(['walks', 'relational']).optional(), // animated background behind the project page header
     draft: z.boolean().default(false),
   }),
 });

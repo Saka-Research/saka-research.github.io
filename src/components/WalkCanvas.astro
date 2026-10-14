@@ -213,10 +213,12 @@
       mouse.y = e.clientY - rect.top;
       mouse.active = mouse.x >= 0 && mouse.y >= 0 && mouse.x <= rect.width && mouse.y <= rect.height;
     });
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    const recolor = () => {
       color = readColors();
       if (!running) draw();
-    });
+    };
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor);
+    window.addEventListener('themechange', recolor); // fired by the theme toggle in Base.astro
   }
 
   document.querySelectorAll<HTMLCanvasElement>('.walk-canvas').forEach(init);

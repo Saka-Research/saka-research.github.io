@@ -1,0 +1,100 @@
+---
+title: "RelAgent: LLM Agents as Data Scientists for Relational Learning"
+authors: ["Xingyue Huang", "Louis Tichelman", "Jinwoo Kim", "Krzysztof Olejniczak", "İsmail İlkan Ceylan"]
+venue: NeurIPS 2026
+date: 2026-12-01
+abstract: "Relational learning is a challenging problem that has motivated a wide range of approaches, including graph-based models (e.g., graph neural networks, graph transformers), tabular methods (e.g., tabular foundation models), and sequence-based approaches (e.g., large language models), each with its own advantages and limitations. We propose RelAgent, an LLM-based autonomous data scientist for relational learning, which operates in two phases. In the search phase, an LLM agent uses database, validation, and evaluation workspace tools to construct SQL feature programs and select a predictive model. In the inference phase, the resulting program is executed without further LLM calls. The final predictor consists of SQL queries and a classical model, enabling fast, deterministic, and intrinsically interpretable predictions: features are human-readable queries, and predictions depend only on the resulting query-defined feature map, enabling scalable deployment using standard database systems."
+areas: ["graphs-relational-learning", "llm-agents"]
+arxiv: "2605.07840"
+pdf: https://arxiv.org/pdf/2605.07840
+code: https://anonymous.4open.science/r/RelAgent
+featured: true
+bibtex: |
+  @inproceedings{huang2026relagent,
+    title     = {RelAgent: LLM Agents as Data Scientists for Relational Learning},
+    author    = {Huang, Xingyue and Tichelman, Louis and Kim, Jinwoo and Olejniczak, Krzysztof and Ceylan, {\.I}smail {\.I}lkan},
+    booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+    year      = {2026}
+  }
+hero: relational # animated background on the project page
+---
+
+import Pipeline from '../../components/relagent/Pipeline.astro';
+import Trajectory from '../../components/relagent/Trajectory.astro';
+import Results from '../../components/relagent/Results.astro';
+
+## TL;DR
+
+RelAgent solves relational prediction tasks by letting an LLM agent iteratively build SQL features, fit a classical
+prediction model (e.g., LightGBM or XGBoost) and test it on validation data. Once a set of features and a predictor
+are selected, the agent is no longer needed, making inference fast, deterministic and interpretable.
+
+## Abstract
+
+Relational learning is a challenging problem that has motivated a wide range of approaches, including graph-based
+models (e.g., graph neural networks, graph transformers), tabular methods (e.g., tabular foundation models), and
+sequence-based approaches (e.g., large language models), each with its own advantages and limitations. We propose
+RelAgent, an LLM-based autonomous data scientist for relational learning, which operates in two phases. In the
+search phase, an LLM agent uses database, validation, and evaluation workspace tools to construct SQL feature
+programs and select a predictive model. In the inference phase, the resulting program is executed without further
+LLM calls. The final predictor consists of SQL queries and a classical model, enabling fast, deterministic, and
+intrinsically interpretable predictions: features are human-readable queries, and predictions depend only on the
+resulting query-defined feature map, enabling scalable deployment using standard database systems.
+
+## Background
+
+Relational databases are the standard way to store structured data in almost every domain: e-commerce,
+healthcare, finance, science, social platforms. Many important prediction problems live there. Will this customer
+churn? How many sales will this item make? Will this user stay engaged? The signal needed to answer them is
+spread across many linked tables.
+
+Relational deep learning tries to learn such predictions directly from the database. In practice, each family of
+neural models commits to a **fixed way of accessing the data**:
+
+- **Tabular models** need a single flat feature table, so the relational structure must first be flattened
+  by hand or by generic aggregations.
+- **Graph models** (GNNs, graph transformers) turn rows into nodes and foreign keys into edges, then aggregate
+  over a predefined neighborhood whose size and depth are chosen in advance.
+- **LLMs** read tables or graphs serialized into text, which makes the result sensitive to formatting and order.
+
+RelAgent takes a different route. Instead of building one access pattern into the model, it lets an **agent
+decide how to query the data**. The agent writes SQL, observes validation feedback, and refines its queries
+until they capture what matters for the task.
+
+## How it works
+
+<Pipeline />
+
+**Search phase.** The agent has three tools: read-only *exploration queries* over the database, *program
+validation* that trains the chosen model on the proposed features and reports a validation score, and an
+*evaluation workspace* that stores previous trials and row-level predictions so the agent can query its own history.
+
+**Inference phase.** The selected feature program is executed on the target entities and the resulting features
+are passed to the fitted predictor. No LLM calls are needed.
+
+## What a search looks like
+
+<Trajectory />
+
+In the case study, the agent first builds a baseline from user-profile, activity and recency features. It then
+queries the evaluation workspace, notices that vote-type counts are constant, and replaces them with
+"voting-breadth" features. The biggest jump comes from switching the model family to XGBoost-DART.
+Finally, it adds badge and post-history features to reach the champion program.
+
+## Results
+
+<Results />
+
+Across RelBench v1, RelBench v2 and 4DBInfer, RelAgent is competitive with or better than supervised graph models
+and relational foundation models. It achieves the best result on every RelBench v2 and 4DBInfer classification
+task and the best average rank on RelBench v1.
+
+## Conclusion
+
+RelAgent shows that LLMs can do more for relational learning than act as predictors themselves: they can construct
+executable learning programs. Searching over SQL feature programs and classical models turns out to be a strong
+alternative to fixed relational architectures, especially when a task needs its own joins, time windows,
+objectives or target transformations. Because the LLM is used only during the search, what is deployed is plain SQL
+plus a standard model: fast, deterministic and inspectable. The main costs are the search itself and its
+reliability, since within a fixed budget the agent can miss deep joins, higher-order relational patterns, or signal
+hidden in long free-text fields.

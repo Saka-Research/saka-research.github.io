@@ -1,0 +1,68 @@
+---
+// RelAgent benchmark averages from Tables 2–6 of the paper (test set).
+import DotResults, { type Bench } from '../DotResults.astro';
+
+const benches: Bench[] = [
+  {
+    id: 'v1c',
+    label: 'RelBench v1 · classification',
+    metric: 'Average AUROC (12 tasks)',
+    better: 'higher',
+    note: 'KumoRFM-v2 has the higher average; RelAgent has the best average rank (3.17 vs 3.38).',
+    rows: [
+      { m: 'KumoRFM-v2', v: 79.6 },
+      { m: 'RelAgent', v: 78.38 },
+      { m: 'RelGNN', v: 78.06 },
+      { m: 'KumoRFM-v1', v: 76.71 },
+      { m: 'RelGT', v: 76.65 },
+      { m: 'GraphSAGE', v: 75.83 },
+      { m: 'DS+LightGBM', v: 75.62 },
+    ],
+  },
+  {
+    id: 'v2c',
+    label: 'RelBench v2 · classification',
+    metric: 'Average AUROC (4 tasks)',
+    better: 'higher',
+    rows: [
+      { m: 'RelAgent', v: 87.32 },
+      { m: 'KumoRFM-v2', v: 85.91 },
+      { m: 'GraphSAGE', v: 83.99 },
+      { m: 'KumoRFM-v1', v: 81.04 },
+      { m: 'LightGBM', v: 76.78 },
+    ],
+  },
+  {
+    id: '4db',
+    label: '4DBInfer · classification',
+    metric: 'Average AUROC (5 tasks)',
+    better: 'higher',
+    rows: [
+      { m: 'RelAgent', v: 81.38 },
+      { m: 'KumoRFM-v2', v: 79.96 },
+      { m: 'HGT', v: 79.94 },
+      { m: 'PNA', v: 79.64 },
+      { m: 'GraphSAGE', v: 79.4 },
+      { m: 'KumoRFM-v1', v: 79.17 },
+      { m: 'RDBLearn', v: 78.6 },
+    ],
+  },
+  {
+    id: 'v1r',
+    label: 'RelBench v1 · regression',
+    metric: 'MAE normalized to LightGBM (9 tasks)',
+    better: 'lower',
+    rows: [
+      { m: 'RelAgent', v: 0.817 },
+      { m: 'KumoRFM-v2', v: 0.822 },
+      { m: 'RelGNN', v: 0.861 },
+      { m: 'RelGT', v: 0.869 },
+      { m: 'DS+LightGBM', v: 0.879 },
+      { m: 'RDBLearn', v: 0.906 },
+      { m: 'LightGBM', v: 1.0 },
+    ],
+  },
+];
+---
+
+<DotResults benches={benches} highlight="RelAgent" />

@@ -4,6 +4,7 @@ import { render } from 'astro:content';
 import 'katex/dist/katex.min.css';
 import Base from '../../layouts/Base.astro';
 import WalkCanvas from '../../components/WalkCanvas.astro';
+import RelationalCanvas from '../../components/RelationalCanvas.astro';
 import { getPublications, getMemberNames, normalizeName, formatMonth, hasProjectPage, type Publication } from '../../lib/content';
 
 export async function getStaticPaths() {
@@ -34,6 +35,7 @@ const links = [
     hero && (
       <div class="paper-hero" aria-hidden="true">
         {hero === 'walks' && <WalkCanvas />}
+        {hero === 'relational' && <RelationalCanvas />}
       </div>
     )
   }

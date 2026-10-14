@@ -338,7 +338,7 @@ a.pill {
   font-size: 1.9rem;
 }
 /* Short vermilion brush-stroke above section titles */
-.rule::before,
+h2.rule::before, /* "rule" alone is also used by chart baselines */
 .section-head h2::before {
   content: '';
   display: block;

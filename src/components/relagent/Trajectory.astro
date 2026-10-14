@@ -1,0 +1,263 @@
+---
+// Running-best validation AUROC over the case-study search (Appendix B.1).
+// Phase boundaries (turn ranges) are from the paper; the turn at which each
+// improvement happens inside a phase is approximate.
+const phases = [
+  { from: 0, to: 2, label: 'Explore' },
+  { from: 2, to: 7, label: 'Revise features' },
+  { from: 7, to: 29, label: 'Model search' },
+  { from: 29, to: 45, label: 'Expand features' },
+];
+const points = [
+  { turn: 1, v: 71.72, note: 'LightGBM baseline: profile, activity, recency' },
+  { turn: 4, v: 78.2, note: 'Replace constant vote counts with voting breadth', label: 'voting-breadth features', below: true },
+  { turn: 9, v: 78.8, note: 'Switch to LightGBM-DART' },
+  { turn: 14, v: 89.9, note: 'Switch to XGBoost-DART', label: 'XGBoost-DART' },
+  { turn: 33, v: 90.3, note: 'Add badge + post-history features → champion', label: 'champion' },
+];
+const W = 720, H = 300, L = 44, R = 16, T = 20, B = 54;
+const X0 = 0, X1 = 45, Y0 = 70, Y1 = 92;
+const x = (t: number) => L + ((t - X0) / (X1 - X0)) * (W - L - R);
+const y = (v: number) => T + (1 - (v - Y0) / (Y1 - Y0)) * (H - T - B);
+// step path: hold each value until the next improvement
+let d = `M${x(points[0].turn)},${y(points[0].v)}`;
+points.slice(1).forEach((p, i) => {
+  d += ` H${x(p.turn)} V${y(p.v)}`;
+});
+d += ` H${x(44)}`;
+const yTicks = [70, 75, 80, 85, 90];
+---
+
+<figure class="traj" data-reveal>
+  <div class="head">
+    <div class="title">Running best validation AUROC during one search</div>
+    <div class="sub">rel-stack / user-engagement · 45 turns · 30 validation trials</div>
+  </div>
+  <div class="plot">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Step chart: validation AUROC rises from 71.72 to 90.30 over 45 turns">
+      {
+        phases.map((p, i) => (
+          <g>
+            {i % 2 === 1 && <rect x={x(p.from)} y={T} width={x(p.to) - x(p.from)} height={H - T - B} class="band" />}
+            <text x={(x(p.from) + x(p.to)) / 2} y={H - B + (i % 2 ? 48 : 34)} class="phase" text-anchor="middle">
+              {p.label}
+            </text>
+          </g>
+        ))
+      }
+      {
+        yTicks.map((v) => (
+          <g>
+            <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} class="grid" />
+            <text x={L - 8} y={y(v) + 4} class="tick" text-anchor="end">
+              {v}
+            </text>
+          </g>
+        ))
+      }
+      {
+        [0, 10, 20, 30, 40].map((t) => (
+          <text x={x(t)} y={H - B + 18} class="tick" text-anchor="middle">
+            {t}
+          </text>
+        ))
+      }
+      <text x={W - R} y={H - B + 18} class="tick" text-anchor="end">turn</text>
+      <path d={d} class="line" pathLength="1" />
+      {
+        points.map((p, i) => (
+          <g class="pt" style={`--i:${i}`}>
+            <circle cx={x(p.turn)} cy={y(p.v)} r="5" class="dot" />
+            {p.label && (
+              <text x={x(p.turn) + 9} y={y(p.v) + (p.below ? 20 : -9)} class="lbl">
+                {p.v.toFixed(2)} · {p.label}
+              </text>
+            )}
+          </g>
+        ))
+      }
+      <line class="cross" y1={T} y2={H - B} x1="-10" x2="-10" />
+      <rect class="hit" x={L} y={T} width={W - L - R} height={H - T - B} />
+    </svg>
+    <div class="tip" role="status"></div>
+  </div>
+  <figcaption>
+    Reconstructed from the search narrative in Appendix B.1; phase boundaries follow the paper, positions within a
+    phase are approximate (Figure 3b in the paper has the exact trace).
+  </figcaption>
+  <script type="application/json" set:html={JSON.stringify(points.map((p) => ({ ...p, px: x(p.turn), py: y(p.v) })))} />
+</figure>
+
+<script>
+  document.querySelectorAll<HTMLElement>('.traj').forEach((fig) => {
+    const pts: { turn: number; v: number; note: string; px: number; py: number }[] = JSON.parse(
+      fig.querySelector('script[type="application/json"]')!.textContent!,
+    );
+    const svg = fig.querySelector('svg')!;
+    const hit = fig.querySelector<SVGRectElement>('.hit')!;
+    const cross = fig.querySelector<SVGLineElement>('.cross')!;
+    const tip = fig.querySelector<HTMLDivElement>('.tip')!;
+    const dots = fig.querySelectorAll<SVGCircleElement>('.dot');
+
+    new IntersectionObserver(([e], io) => {
+      if (e.isIntersecting) {
+        fig.classList.add('drawn');
+        io.disconnect();
+      }
+    }, { threshold: 0.6 }).observe(fig);
+
+    hit.addEventListener('pointermove', (ev) => {
+      const pt = svg.createSVGPoint();
+      pt.x = ev.clientX;
+      pt.y = ev.clientY;
+      const loc = pt.matrixTransform(svg.getScreenCTM()!.inverse());
+      // snap to the milestone currently in effect (last one at or before the cursor)
+      let i = 0;
+      pts.forEach((p, j) => {
+        if (p.px <= loc.x + 1) i = j;
+      });
+      const p = pts[i];
+      cross.setAttribute('x1', String(p.px));
+      cross.setAttribute('x2', String(p.px));
+      cross.classList.add('show');
+      dots.forEach((d, j) => d.classList.toggle('hot', j === i));
+      const r = svg.getBoundingClientRect();
+      const scale = r.width / svg.viewBox.baseVal.width;
+      tip.innerHTML = `<strong>${p.v.toFixed(2)}</strong> <span>≈ turn ${p.turn}</span><br>${p.note}`;
+      tip.style.left = `${Math.min(p.px * scale + 12, r.width - 230)}px`;
+      tip.style.top = `${p.py * scale + 14}px`;
+      tip.classList.add('show');
+    });
+    hit.addEventListener('pointerleave', () => {
+      tip.classList.remove('show');
+      cross.classList.remove('show');
+      dots.forEach((d) => d.classList.remove('hot'));
+    });
+  });
+</script>
+
+<style>
+  .traj {
+    margin: 32px 0;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--bg-elev);
+  }
+  .title {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .sub {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .plot {
+    position: relative;
+    margin-top: 8px;
+  }
+  svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+  .band {
+    fill: color-mix(in srgb, var(--line) 35%, transparent);
+  }
+  .grid {
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+  .tick,
+  .phase {
+    fill: var(--muted);
+    font: 11px var(--font-sans);
+  }
+  .phase {
+    font-size: 11.5px;
+  }
+  .line {
+    fill: none;
+    stroke: var(--chart-1);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  .drawn .line {
+    transition: stroke-dashoffset 3.2s cubic-bezier(0.45, 0, 0.2, 1);
+    stroke-dashoffset: 0;
+  }
+  .pt {
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    transition-delay: calc(0.4s + var(--i) * 0.6s);
+  }
+  .drawn .pt {
+    opacity: 1;
+  }
+  .dot {
+    fill: var(--chart-1);
+    stroke: var(--bg-elev);
+    stroke-width: 2;
+    transition: r 0.15s ease;
+  }
+  .dot.hot {
+    r: 7;
+  }
+  .lbl {
+    fill: var(--text);
+    font: 500 12px var(--font-sans);
+  }
+  .cross {
+    stroke: var(--muted);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    opacity: 0;
+  }
+  .cross.show {
+    opacity: 1;
+  }
+  .hit {
+    fill: transparent;
+    cursor: crosshair;
+  }
+  .tip {
+    position: absolute;
+    pointer-events: none;
+    max-width: 220px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    font-size: 0.78rem;
+    line-height: 1.4;
+    opacity: 0;
+    transform: translateY(4px);
+    transition:
+      opacity 0.15s ease,
+      transform 0.15s ease;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  }
+  .tip.show {
+    opacity: 1;
+    transform: none;
+  }
+  .tip :global(span) {
+    color: var(--muted);
+  }
+  figcaption {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .line {
+      stroke-dashoffset: 0;
+    }
+    .pt {
+      opacity: 1;
+    }
+  }
+</style>

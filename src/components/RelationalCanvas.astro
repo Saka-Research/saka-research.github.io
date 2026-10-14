@@ -1,0 +1,312 @@
+---
+// Abstract relational database: small tables linked by foreign keys, with query
+// "pulses" travelling along the links and lighting up the rows they join into.
+// Pulses sometimes continue to the next table, like a multi-hop join.
+// Tables near the cursor light up and send out more queries.
+// Pauses off-screen; renders one still frame with prefers-reduced-motion.
+---
+
+<canvas class="relational-canvas" aria-hidden="true"></canvas>
+
+<script>
+  type Table = {
+    hx: number;
+    hy: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rows: number;
+    phase: number;
+    lit: { row: number; until: number }[];
+    hot: number; // 0..1, eased
+  };
+  type Edge = { a: number; b: number; ra: number; rb: number };
+  type Pulse = { e: number; t: number; dir: 1 | -1; speed: number; hops: number };
+
+  const HEADER = 11;
+  const ROW = 9;
+
+  function init(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let w = 0;
+    let h = 0;
+    let tables: Table[] = [];
+    let edges: Edge[] = [];
+    let pulses: Pulse[] = [];
+    let running = false;
+    let raf = 0;
+    let lastSpawn = 0;
+    const mouse = { x: -9999, y: -9999, active: false };
+
+    const readColors = () => {
+      const s = getComputedStyle(document.documentElement);
+      return {
+        a: s.getPropertyValue('--accent').trim() || '#3b5bdb',
+        b: s.getPropertyValue('--accent-2').trim() || '#0ca678',
+      };
+    };
+    let color = readColors();
+
+    function layout() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      if (Math.abs(rect.width - w) < 2 && Math.abs(rect.height - h) < 2 && tables.length) return;
+      w = rect.width;
+      h = rect.height;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // one table per grid cell (some cells left empty), jittered inside the cell
+      const cols = Math.max(3, Math.round(w / 170));
+      const rowsN = Math.max(2, Math.round(h / 125));
+      const cw = w / cols;
+      const ch = h / rowsN;
+      tables = [];
+      for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rowsN; j++) {
+          if (Math.random() < 0.22) continue;
+          const tw = 62 + Math.random() * 36;
+          const rows = 3 + Math.floor(Math.random() * 3);
+          const th = HEADER + rows * ROW + 4;
+          const hx = i * cw + 10 + Math.random() * Math.max(0, cw - tw - 20);
+          const hy = j * ch + 10 + Math.random() * Math.max(0, ch - th - 20);
+          tables.push({ hx, hy, x: hx, y: hy, w: tw, h: th, rows, phase: Math.random() * Math.PI * 2, lit: [], hot: 0 });
+        }
+      }
+
+      // foreign keys: link each table to its 1–2 nearest neighbours
+      const seen = new Set<string>();
+      edges = [];
+      tables.forEach((t, i) => {
+        const near = tables
+          .map((u, j) => ({ j, d: Math.hypot(u.hx - t.hx, u.hy - t.hy) }))
+          .filter((o) => o.j !== i)
+          .sort((p, q) => p.d - q.d)
+          .slice(0, 1 + (Math.random() < 0.55 ? 1 : 0));
+        near.forEach(({ j }) => {
+          const key = i < j ? `${i}-${j}` : `${j}-${i}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          edges.push({
+            a: i,
+            b: j,
+            ra: Math.floor(Math.random() * t.rows),
+            rb: Math.floor(Math.random() * tables[j].rows),
+          });
+        });
+      });
+      pulses = [];
+    }
+
+    // endpoint of an edge on a table: left or right side, at a row's height
+    function anchor(t: Table, row: number, towardsX: number) {
+      const right = towardsX > t.x + t.w / 2;
+      return { x: right ? t.x + t.w : t.x, y: t.y + HEADER + row * ROW + ROW / 2 + 2, s: right ? 1 : -1 };
+    }
+
+    function curve(e: Edge) {
+      const A = tables[e.a];
+      const B = tables[e.b];
+      const p0 = anchor(A, e.ra, B.x + B.w / 2);
+      const p3 = anchor(B, e.rb, A.x + A.w / 2);
+      const dx = Math.max(28, Math.abs(p3.x - p0.x) * 0.45);
+      return { p0, p1: { x: p0.x + p0.s * dx, y: p0.y }, p2: { x: p3.x + p3.s * dx, y: p3.y }, p3 };
+    }
+
+    function bez(c: ReturnType<typeof curve>, t: number) {
+      const u = 1 - t;
+      return {
+        x: u * u * u * c.p0.x + 3 * u * u * t * c.p1.x + 3 * u * t * t * c.p2.x + t * t * t * c.p3.x,
+        y: u * u * u * c.p0.y + 3 * u * u * t * c.p1.y + 3 * u * t * t * c.p2.y + t * t * t * c.p3.y,
+      };
+    }
+
+    function spawn(fromTable?: number, hops = 0) {
+      const candidates = edges
+        .map((e, i) => ({ e, i }))
+        .filter(({ e }) => fromTable === undefined || e.a === fromTable || e.b === fromTable);
+      if (!candidates.length) return;
+      const { e, i } = candidates[Math.floor(Math.random() * candidates.length)];
+      const dir: 1 | -1 = fromTable === undefined ? (Math.random() < 0.5 ? 1 : -1) : e.a === fromTable ? 1 : -1;
+      pulses.push({ e: i, t: dir === 1 ? 0 : 1, dir, speed: 0.0045 + Math.random() * 0.004, hops });
+    }
+
+    function roundRect(x: number, y: number, rw: number, rh: number, r: number) {
+      ctx!.beginPath();
+      ctx!.moveTo(x + r, y);
+      ctx!.arcTo(x + rw, y, x + rw, y + rh, r);
+      ctx!.arcTo(x + rw, y + rh, x, y + rh, r);
+      ctx!.arcTo(x, y + rh, x, y, r);
+      ctx!.arcTo(x, y, x + rw, y, r);
+      ctx!.closePath();
+    }
+
+    function frame(now: number) {
+      ctx!.clearRect(0, 0, w, h);
+
+      // drift + hover state
+      let nearest = -1;
+      let nearestD = 130;
+      tables.forEach((t, i) => {
+        t.x = t.hx + Math.sin(now * 0.00032 + t.phase) * 6;
+        t.y = t.hy + Math.cos(now * 0.00027 + t.phase) * 5;
+        const d = Math.hypot(mouse.x - (t.x + t.w / 2), mouse.y - (t.y + t.h / 2));
+        if (mouse.active && d < nearestD) {
+          nearestD = d;
+          nearest = i;
+        }
+      });
+      tables.forEach((t, i) => (t.hot += ((i === nearest ? 1 : 0) - t.hot) * 0.08));
+
+      // spawn queries: ambient, plus more from the table under the cursor
+      if (now - lastSpawn > 380) {
+        lastSpawn = now;
+        if (pulses.length < 14) spawn();
+        if (nearest >= 0 && pulses.length < 22) spawn(nearest);
+      }
+
+      // foreign-key links
+      ctx!.lineWidth = 1;
+      edges.forEach((e) => {
+        const c = curve(e);
+        const hot = Math.max(tables[e.a].hot, tables[e.b].hot);
+        ctx!.globalAlpha = 0.18 + hot * 0.3;
+        ctx!.strokeStyle = color.a;
+        ctx!.beginPath();
+        ctx!.moveTo(c.p0.x, c.p0.y);
+        ctx!.bezierCurveTo(c.p1.x, c.p1.y, c.p2.x, c.p2.y, c.p3.x, c.p3.y);
+        ctx!.stroke();
+        ctx!.globalAlpha = 0.35 + hot * 0.4;
+        ctx!.fillStyle = color.a;
+        [c.p0, c.p3].forEach((p) => {
+          ctx!.beginPath();
+          ctx!.arc(p.x, p.y, 1.8, 0, Math.PI * 2);
+          ctx!.fill();
+        });
+      });
+
+      // tables
+      tables.forEach((t) => {
+        t.lit = t.lit.filter((l) => l.until > now);
+        roundRect(t.x, t.y, t.w, t.h, 4);
+        ctx!.globalAlpha = 0.05 + t.hot * 0.06;
+        ctx!.fillStyle = color.a;
+        ctx!.fill();
+        ctx!.globalAlpha = 0.3 + t.hot * 0.45;
+        ctx!.strokeStyle = color.a;
+        ctx!.stroke();
+        // header
+        ctx!.globalAlpha = 0.22 + t.hot * 0.3;
+        ctx!.fillRect(t.x + 1, t.y + 1, t.w - 2, HEADER - 1);
+        // highlighted rows (the result of an arriving join)
+        t.lit.forEach((l) => {
+          const k = Math.min(1, (l.until - now) / 900);
+          ctx!.globalAlpha = 0.45 * k;
+          ctx!.fillStyle = color.b;
+          ctx!.fillRect(t.x + 1, t.y + HEADER + l.row * ROW + 2, t.w - 2, ROW);
+        });
+        // row lines: a short "key" cell and a longer value bar
+        ctx!.fillStyle = color.a;
+        for (let r = 0; r < t.rows; r++) {
+          const ry = t.y + HEADER + r * ROW + ROW / 2 + 2;
+          ctx!.globalAlpha = 0.28 + t.hot * 0.3;
+          ctx!.fillRect(t.x + 6, ry - 1, 8, 2);
+          ctx!.globalAlpha = 0.16 + t.hot * 0.2;
+          ctx!.fillRect(t.x + 18, ry - 1, (t.w - 26) * (0.45 + ((r * 37 + t.rows * 11) % 50) / 100), 2);
+        }
+      });
+
+      // query pulses
+      const next: Pulse[] = [];
+      const chained: [number, number][] = [];
+      pulses.forEach((p) => {
+        p.t += p.dir * p.speed;
+        const e = edges[p.e];
+        if (p.t > 1 || p.t < 0) {
+          // arrived: light up the joined row, and maybe keep joining
+          const target = p.dir === 1 ? e.b : e.a;
+          const row = p.dir === 1 ? e.rb : e.ra;
+          tables[target].lit.push({ row, until: now + 900 });
+          if (p.hops < 2 && Math.random() < 0.45) chained.push([target, p.hops + 1]);
+          return;
+        }
+        const c = curve(e);
+        const pos = bez(c, p.t);
+        const tail = bez(c, Math.min(1, Math.max(0, p.t - p.dir * 0.08)));
+        const grad = ctx!.createLinearGradient(tail.x, tail.y, pos.x, pos.y);
+        grad.addColorStop(0, 'transparent');
+        grad.addColorStop(1, color.b);
+        ctx!.globalAlpha = 0.9;
+        ctx!.strokeStyle = grad;
+        ctx!.lineWidth = 2;
+        ctx!.beginPath();
+        ctx!.moveTo(tail.x, tail.y);
+        ctx!.lineTo(pos.x, pos.y);
+        ctx!.stroke();
+        ctx!.lineWidth = 1;
+        ctx!.fillStyle = color.b;
+        ctx!.beginPath();
+        ctx!.arc(pos.x, pos.y, 2.6, 0, Math.PI * 2);
+        ctx!.fill();
+        next.push(p);
+      });
+      pulses = next;
+      chained.forEach(([t, hops]) => spawn(t, hops));
+      ctx!.globalAlpha = 1;
+
+      if (running) raf = requestAnimationFrame(frame);
+    }
+
+    function start() {
+      if (running || reduceMotion) return;
+      running = true;
+      raf = requestAnimationFrame(frame);
+    }
+    function stop() {
+      running = false;
+      cancelAnimationFrame(raf);
+    }
+
+    layout();
+    frame(performance.now());
+
+    new ResizeObserver(() => {
+      layout();
+      if (!running) frame(performance.now());
+    }).observe(canvas);
+    new IntersectionObserver(([entry]) => (entry.isIntersecting ? start() : stop())).observe(canvas);
+
+    // The canvas sits behind page content, so track the pointer on the window.
+    window.addEventListener('pointermove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+      mouse.active = mouse.x >= 0 && mouse.y >= 0 && mouse.x <= rect.width && mouse.y <= rect.height;
+    });
+    document.addEventListener('pointerleave', () => (mouse.active = false));
+
+    const recolor = () => {
+      color = readColors();
+      if (!running) frame(performance.now());
+    };
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor);
+    window.addEventListener('themechange', recolor); // fired by the theme toggle in Base.astro
+  }
+
+  document.querySelectorAll<HTMLCanvasElement>('.relational-canvas').forEach(init);
+</script>
+
+<style>
+  .relational-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+</style>

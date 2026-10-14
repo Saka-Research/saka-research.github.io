@@ -1,0 +1,538 @@
+---
+// Animated overview of RelAgent: the search phase (LLM agent calling three tools while a
+// feature program is built up) and the inference phase (SQL program + classical model, no LLM).
+// The search replay follows the rel-stack / user-engagement case study in Appendix B.
+const tools = [
+  { id: 0, title: 'Database exploration', sub: 'read-only SQL exploration queries', y: 28 },
+  { id: 1, title: 'Program validation', sub: 'run program → validation metric', y: 138 },
+  { id: 2, title: 'Evaluation workspace', sub: 'query past trials & predictions', y: 248 },
+];
+const infer = [
+  { x: 20, title: 'Target entities', sub: 'users at time t' },
+  { x: 200, title: 'SQL program', sub: '7 feature-query blocks' },
+  { x: 380, title: 'XGBoost-DART', sub: 'fitted on train' },
+  { x: 560, title: 'Prediction', sub: 'P(user engages)' },
+];
+---
+
+<figure class="ra" data-reveal>
+  <div class="ra-bar">
+    <div class="seg" role="tablist" aria-label="Phase">
+      <button type="button" role="tab" aria-selected="true" data-phase="search">1 · Search phase</button>
+      <button type="button" role="tab" aria-selected="false" data-phase="infer">2 · Inference phase</button>
+    </div>
+    <button type="button" class="replay" aria-label="Replay animation">↻ Replay</button>
+  </div>
+
+  <div class="stage">
+    <!-- SEARCH PHASE -->
+    <svg class="phase phase-search" viewBox="0 0 720 340" role="img" aria-label="LLM agent calling three tools during the search phase">
+      <g class="links">
+        {tools.map((t) => <line class="link" data-link={t.id} x1="220" y1="170" x2="460" y2={t.y + 32} />)}
+      </g>
+      <g class="agent">
+        <rect x="30" y="112" width="190" height="116" rx="16" class="node node-agent" />
+        <text x="125" y="160" class="t-title" text-anchor="middle">LLM agent</text>
+        <text x="125" y="182" class="t-sub" text-anchor="middle">proposes &amp; refines</text>
+        <text x="125" y="198" class="t-sub" text-anchor="middle">feature programs</text>
+        <circle cx="125" cy="130" r="5" class="pulse" />
+      </g>
+      {
+        tools.map((t) => (
+          <g class="tool" data-tool={t.id}>
+            <rect x="460" y={t.y} width="236" height="64" rx="12" class="node" />
+            <text x="478" y={t.y + 28} class="t-title">
+              {t.title}
+            </text>
+            <text x="478" y={t.y + 47} class="t-sub">
+              {t.sub}
+            </text>
+          </g>
+        ))
+      }
+      <circle class="packet" r="6" cx="-20" cy="-20" />
+    </svg>
+
+    <!-- INFERENCE PHASE -->
+    <svg class="phase phase-infer" viewBox="0 0 720 340" role="img" aria-label="Inference: target entities through SQL program and model to prediction, without the LLM">
+      <g class="agent-off">
+        <rect x="260" y="30" width="200" height="64" rx="14" class="node node-off" />
+        <text x="360" y="58" class="t-title muted-t" text-anchor="middle">LLM agent</text>
+        <text x="360" y="77" class="t-sub" text-anchor="middle">not needed at inference</text>
+      </g>
+      <line class="link link-on" x1="90" y1="188" x2="630" y2="188" />
+      <g class="stream"></g>
+      {
+        infer.map((n, i) => (
+          <g class="inode" data-inode={i}>
+            <rect x={n.x} y="150" width="140" height="76" rx="12" class:list={['node', i === 1 || i === 2 ? 'node-core' : '']} />
+            <text x={n.x + 70} y="184" class="t-title" text-anchor="middle">
+              {n.title}
+            </text>
+            <text x={n.x + 70} y="205" class="t-sub" text-anchor="middle">
+              {n.sub}
+            </text>
+          </g>
+        ))
+      }
+      <text x="360" y="290" class="t-sub" text-anchor="middle">fast · deterministic · every feature is a human-readable SQL query</text>
+    </svg>
+  </div>
+
+  <div class="panels">
+    <div class="trace" aria-live="polite">
+      <div class="panel-h">Agent trace</div>
+      <ol class="lines"></ol>
+    </div>
+    <div class="program">
+      <div class="panel-h">Feature program</div>
+      <div class="blocks"></div>
+      <div class="kv"><span>Model</span><strong class="model">—</strong></div>
+      <div class="kv"><span>Best val. AUROC</span><strong class="score">—</strong></div>
+    </div>
+  </div>
+
+  <figcaption>
+    Replay of one search run on <code>rel-stack</code> / user-engagement, simplified from the case study in
+    Appendix B. Queries shown are paraphrased.
+  </figcaption>
+</figure>
+
+<script>
+  type Step = {
+    tool: 0 | 1 | 2;
+    ask: string;
+    reply: string;
+    add?: string[];
+    model?: string;
+    score?: number;
+  };
+
+  // Condensed from Appendix B.1 (45 turns, 30 validation trials).
+  const STEPS: Step[] = [
+    { tool: 0, ask: 'SHOW TABLES', reply: 'users, posts, votes, comments, badges, post_history, post_links' },
+    { tool: 0, ask: 'DESCRIBE users; SELECT label, COUNT(*) …', reply: 'target is strongly imbalanced' },
+    {
+      tool: 1,
+      ask: 'validate(profile + activity counts + recency, LightGBM)',
+      reply: 'val AUROC 71.72',
+      add: ['User profile', 'Activity windows', 'Recency'],
+      model: 'LightGBM',
+      score: 71.72,
+    },
+    { tool: 2, ask: 'which features were constant or low-SHAP?', reply: 'vote-type counts are constant → drop them' },
+    {
+      tool: 1,
+      ask: 'validate(+ distinct posts voted on, recent windows)',
+      reply: 'val AUROC 78.20',
+      add: ['Comments & votes'],
+      score: 78.2,
+    },
+    { tool: 1, ask: 'validate(same SQL, LightGBM-DART)', reply: 'val AUROC 78.80', model: 'LightGBM-DART', score: 78.8 },
+    { tool: 1, ask: 'validate(same SQL, XGBoost-DART)', reply: 'val AUROC 89.90', model: 'XGBoost-DART', score: 89.9 },
+    {
+      tool: 1,
+      ask: 'validate(+ badge & post-history features)',
+      reply: 'val AUROC 90.30 → champion (trial 29, 45 features)',
+      add: ['Badges', 'Post history'],
+      score: 90.3,
+    },
+  ];
+
+  const AGENT = { x: 220, y: 170 };
+  const TOOL_Y = [60, 170, 280];
+  const TOOL_X = 460;
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  function setup(root: HTMLElement) {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const packet = root.querySelector<SVGCircleElement>('.packet')!;
+    const lines = root.querySelector<HTMLOListElement>('.lines')!;
+    const blocks = root.querySelector<HTMLDivElement>('.blocks')!;
+    const model = root.querySelector<HTMLElement>('.model')!;
+    const score = root.querySelector<HTMLElement>('.score')!;
+    const stream = root.querySelector<SVGGElement>('.stream')!;
+    let run = 0; // incremented to cancel an in-flight animation
+    let phase: 'search' | 'infer' = 'search';
+
+    function move(from: { x: number; y: number }, to: { x: number; y: number }, ms: number, id: number) {
+      return new Promise<void>((resolve) => {
+        if (reduce) return resolve();
+        const t0 = performance.now();
+        const tick = (now: number) => {
+          if (id !== run) return resolve();
+          const k = Math.min(1, (now - t0) / ms);
+          const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+          packet.setAttribute('cx', String(from.x + (to.x - from.x) * e));
+          packet.setAttribute('cy', String(from.y + (to.y - from.y) * e));
+          k < 1 ? requestAnimationFrame(tick) : resolve();
+        };
+        requestAnimationFrame(tick);
+      });
+    }
+
+    function addLine(text: string, kind: 'ask' | 'reply') {
+      const li = document.createElement('li');
+      li.className = kind;
+      li.textContent = (kind === 'ask' ? '› ' : '← ') + text;
+      lines.appendChild(li);
+      while (lines.children.length > 6) lines.firstElementChild?.remove();
+    }
+
+    function apply(s: Step) {
+      s.add?.forEach((b) => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = b;
+        blocks.appendChild(chip);
+      });
+      if (s.model) model.textContent = s.model;
+      if (s.score) {
+        score.textContent = s.score.toFixed(2);
+        score.classList.remove('bump');
+        void score.offsetWidth; // restart the CSS animation
+        score.classList.add('bump');
+      }
+    }
+
+    function reset() {
+      lines.innerHTML = '';
+      blocks.innerHTML = '';
+      model.textContent = '—';
+      score.textContent = '—';
+      packet.setAttribute('cx', '-20');
+      root.querySelectorAll('.tool, .link').forEach((el) => el.classList.remove('on'));
+    }
+
+    // the replay only advances while the figure is actually in view
+    let visible = false;
+    let resume: (() => void) | null = null;
+    const untilVisible = () =>
+      visible ? Promise.resolve() : new Promise<void>((r) => (resume = r));
+
+    async function playSearch() {
+      const id = ++run;
+      reset();
+      if (reduce) {
+        STEPS.forEach((s) => {
+          addLine(s.ask, 'ask');
+          addLine(s.reply, 'reply');
+          apply(s);
+        });
+        return;
+      }
+      await untilVisible();
+      await sleep(600);
+      for (const s of STEPS) {
+        await untilVisible(); // pause between steps while scrolled away
+        if (id !== run) return;
+        const tool = root.querySelector(`[data-tool="${s.tool}"]`)!;
+        const link = root.querySelector(`[data-link="${s.tool}"]`)!;
+        const target = { x: TOOL_X, y: TOOL_Y[s.tool] };
+        link.classList.add('on');
+        addLine(s.ask, 'ask');
+        await move(AGENT, target, 950, id);
+        tool.classList.add('on');
+        await sleep(750);
+        await move(target, AGENT, 950, id);
+        if (id !== run) return;
+        tool.classList.remove('on');
+        link.classList.remove('on');
+        addLine(s.reply, 'reply');
+        apply(s);
+        await sleep(1300);
+      }
+    }
+
+    async function playInfer() {
+      const id = ++run;
+      // Fill the program panel with the final champion program.
+      reset();
+      STEPS.forEach(apply);
+      addLine('no LLM calls — execute SQL, then predict', 'reply');
+      stream.innerHTML = '';
+      if (reduce) return;
+      const ns = 'http://www.w3.org/2000/svg';
+      const dots = Array.from({ length: 9 }, (_, i) => {
+        const c = document.createElementNS(ns, 'circle');
+        c.setAttribute('r', '4.5');
+        c.setAttribute('cy', '188');
+        c.setAttribute('class', 'packet');
+        stream.appendChild(c);
+        return { c, offset: i / 9 };
+      });
+      const x0 = 90;
+      const span = 540;
+      const t0 = performance.now();
+      const tick = (now: number) => {
+        if (id !== run) return;
+        const t = ((now - t0) / 4800) % 1;
+        dots.forEach((d) => {
+          const k = (t + d.offset) % 1;
+          // dots pass behind the (opaque) node boxes
+          d.c.setAttribute('cx', String(x0 + k * span));
+          d.c.style.opacity = String(Math.sin(k * Math.PI));
+        });
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+
+    let started = false;
+    function show(p: 'search' | 'infer') {
+      started = true;
+      phase = p;
+      root.dataset.phase = p;
+      root.querySelectorAll<HTMLButtonElement>('[data-phase]').forEach((b) => {
+        b.setAttribute('aria-selected', String(b.dataset.phase === p));
+      });
+      p === 'search' ? playSearch() : playInfer();
+    }
+
+    root.querySelectorAll<HTMLButtonElement>('[data-phase]').forEach((b) =>
+      b.addEventListener('click', () => show(b.dataset.phase as 'search' | 'infer')),
+    );
+    root.querySelector('.replay')!.addEventListener('click', () => show(phase));
+
+    // Start once at least half of the figure is in view; pause while it is scrolled away.
+    new IntersectionObserver(
+      ([e]) => {
+        // in view: half of the figure, or (for figures taller than the screen) half of the screen
+        const needed = 0.5 * Math.min(e.boundingClientRect.height, window.innerHeight);
+        visible = e.isIntersecting && e.intersectionRect.height >= needed;
+        if (visible) {
+          if (!started) show('search');
+          resume?.();
+          resume = null;
+        }
+      },
+      { threshold: [0, 0.25, 0.5, 0.75, 1] },
+    ).observe(root);
+  }
+
+  document.querySelectorAll<HTMLElement>('.ra').forEach(setup);
+</script>
+
+<style>
+  .ra {
+    margin: 32px 0;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--bg-elev);
+  }
+  .ra-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  /* phase switch: same look as the figure buttons elsewhere (selected = solid red) */
+  .seg {
+    display: inline-flex;
+    padding: 3px;
+    border: 1.5px solid var(--line);
+    border-radius: 99px;
+    gap: 4px;
+  }
+  .seg button,
+  .replay {
+    font: inherit;
+    font-size: 0.85rem;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    padding: 6px 14px;
+    border-radius: 99px;
+    cursor: pointer;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .seg button[aria-selected='true'] {
+    background: var(--fill);
+    color: var(--on-fill);
+  }
+  .replay:hover,
+  .seg button:not([aria-selected='true']):hover {
+    color: var(--accent);
+  }
+
+  .stage {
+    position: relative;
+    margin-top: 10px;
+    aspect-ratio: 720 / 340;
+  }
+  .phase {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.45s ease;
+  }
+  .phase-infer,
+  .ra[data-phase='infer'] .phase-search {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .ra[data-phase='infer'] .phase-infer {
+    opacity: 1;
+  }
+
+  .node {
+    fill: var(--bg);
+    stroke: var(--line);
+    stroke-width: 1.5;
+    transition:
+      stroke 0.25s ease,
+      fill 0.25s ease;
+  }
+  .node-agent {
+    stroke: var(--chart-1);
+  }
+  .node-core {
+    stroke: var(--chart-2);
+  }
+  .node-off {
+    stroke-dasharray: 5 5;
+    fill: none;
+  }
+  .tool.on .node {
+    stroke: var(--chart-2);
+    fill: color-mix(in srgb, var(--chart-2) 12%, var(--bg));
+  }
+  .t-title {
+    fill: var(--text);
+    font: 500 15px var(--font-sans);
+  }
+  .muted-t {
+    fill: var(--muted);
+  }
+  .t-sub {
+    fill: var(--muted);
+    font: 12px var(--font-sans);
+  }
+  .link {
+    stroke: var(--line);
+    stroke-width: 2;
+    transition: stroke 0.25s ease;
+  }
+  .link.on,
+  .link-on {
+    stroke: color-mix(in srgb, var(--chart-2) 70%, var(--line));
+  }
+  :global(.ra .packet) {
+    fill: var(--chart-2);
+  }
+  .pulse {
+    fill: var(--chart-1);
+    animation: pulse 1.6s ease-in-out infinite;
+    transform-origin: 125px 130px;
+  }
+  @keyframes pulse {
+    50% {
+      opacity: 0.35;
+      transform: scale(1.6);
+    }
+  }
+
+  .panels {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  @media (max-width: 640px) {
+    .panels {
+      grid-template-columns: 1fr;
+    }
+  }
+  .trace,
+  .program {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: var(--bg);
+    min-height: 168px;
+  }
+  .panel-h {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .lines {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font: 0.78rem/1.55 var(--font-mono);
+  }
+  :global(.ra .lines li) {
+    animation: in 0.35s ease both;
+    overflow-wrap: anywhere;
+  }
+  :global(.ra .lines li.reply) {
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .blocks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 30px;
+    margin-bottom: 10px;
+  }
+  :global(.ra .chip) {
+    font-size: 0.75rem;
+    padding: 3px 9px;
+    border-radius: 99px;
+    border: 1px solid color-mix(in srgb, var(--chart-1) 50%, var(--line));
+    color: var(--text);
+    animation: pop 0.4s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+  }
+  .kv {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    padding: 4px 0;
+    border-top: 1px dashed var(--line);
+  }
+  .kv span {
+    color: var(--muted);
+  }
+  .score {
+    font-variant-numeric: tabular-nums;
+  }
+  :global(.ra .score.bump) {
+    animation: bump 0.6s ease;
+  }
+  figcaption {
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  @keyframes in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+  }
+  @keyframes bump {
+    40% {
+      color: var(--chart-2);
+      transform: scale(1.15);
+    }
+  }
+  .score {
+    display: inline-block;
+  }
+</style>
