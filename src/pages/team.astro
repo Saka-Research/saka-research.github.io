@@ -27,6 +27,24 @@ const recentPubsOf = (m: Member) => {
     </div>
     {current.map((m) => <MemberDialog member={m} areas={areasOf(m)} pubs={recentPubsOf(m)} />)}
 
+    {
+      alumni.length > 0 && (
+        <>
+          <div class="section-head" data-reveal>
+            <h2>Alumni — where are they now</h2>
+          </div>
+          <div class="grid">
+            {alumni.map((m, i) => (
+              <MemberCard member={m} delay={(i % 4) * 0.05} />
+            ))}
+          </div>
+          {alumni.map((m) => (
+            <MemberDialog member={m} areas={areasOf(m)} pubs={recentPubsOf(m)} />
+          ))}
+        </>
+      )
+    }
+
     <div class="section-head" data-reveal>
       <h2>Long-term collaborators</h2>
     </div>
@@ -44,26 +62,6 @@ const recentPubsOf = (m: Member) => {
       }
     </div>
 
-    {
-      alumni.length > 0 && (
-        <>
-          <div class="section-head" data-reveal>
-            <h2>Alumni — where are they now</h2>
-          </div>
-          <div class="alumni">
-            {alumni.map((m, i) => (
-              <div class="alum" data-reveal style={`--reveal-delay:${(i % 4) * 0.04}s`}>
-                <h3>{m.data.name}</h3>
-                {m.data.alumni!.period && <p class="period">{m.data.alumni!.period}</p>}
-                {m.data.alumni!.thesis && <p class="thesis">{m.data.alumni!.thesis}</p>}
-                {m.data.alumni!.now && <p class="muted">Now: {m.data.alumni!.now}</p>}
-                {m.data.alumni!.website && <a href={m.data.alumni!.website}>Website →</a>}
-              </div>
-            ))}
-          </div>
-        </>
-      )
-    }
   </section>
 </Base>
 
@@ -98,37 +96,5 @@ const recentPubsOf = (m: Member) => {
     font-size: 0.8rem;
     font-weight: 500;
     color: var(--accent);
-  }
-  .alumni {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 0 24px;
-  }
-  .alum {
-    padding: 14px 0;
-    border-top: 1px solid var(--line);
-  }
-  .alum h3 {
-    margin: 0;
-    font-size: 1.2rem;
-  }
-  .alum p {
-    margin: 2px 0 4px;
-    font-size: 0.88rem;
-  }
-  .alum .period {
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--accent);
-  }
-  .alum .thesis {
-    font-family: var(--font-display);
-    font-style: italic;
-    font-size: 1rem;
-  }
-  .alum a {
-    font-size: 0.85rem;
   }
 </style>

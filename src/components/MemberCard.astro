@@ -9,7 +9,12 @@ interface Props {
   compact?: boolean; // name + role only (used on research pages)
 }
 const { member, delay = 0, compact = false } = Astro.props;
-const { name, role, affiliation, since, photo, bio, cosupervisors, links } = member.data;
+const { name, role, affiliation, since, photo, bio, cosupervisors, links, alumni } = member.data;
+// Alumni: "DPhil, 2018–2022" instead of the role, and where they are now instead of the affiliation
+const roleLine = alumni ? (alumni.period ?? role) : role;
+const affLine = alumni
+  ? alumni.now && `Now: ${alumni.now}`
+  : [affiliation, since && `since ${since}`].filter(Boolean).join(' · ');
 
 const icons = [
   links.website && { name: 'website', href: links.website, label: 'Website' },
@@ -41,8 +46,8 @@ const icons = [
         )
       }
     </h3>
-    <p class="role">{role}</p>
-    {!compact && (affiliation || since) && <p class="aff">{[affiliation, since && `since ${since}`].filter(Boolean).join(' · ')}</p>}
+    <p class="role">{roleLine}</p>
+    {!compact && affLine && <p class="aff">{affLine}</p>}
     {!compact && <p class="bio">{bio}</p>}
     {
       !compact && cosupervisors.length > 0 && (

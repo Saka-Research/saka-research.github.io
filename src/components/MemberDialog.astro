@@ -9,7 +9,11 @@ interface Props {
   pubs: Publication[]; // this member's most recent papers
 }
 const { member, areas, pubs } = Astro.props;
-const { name, role, affiliation, since, photo, bio, cosupervisors, links } = member.data;
+const { name, role, affiliation, since, photo, bio, cosupervisors, links, alumni } = member.data;
+const roleLine = alumni ? (alumni.period ?? role) : role;
+const affLine = alumni
+  ? alumni.now && `Now: ${alumni.now}`
+  : [affiliation, since && `since ${since}`].filter(Boolean).join(' · ');
 
 const contacts = [
   links.website && { name: 'website', href: links.website, label: 'Website' },
@@ -36,12 +40,21 @@ const pubLink = (p: Publication) =>
       <Avatar name={name} photo={photo} size={104} />
       <div>
         <h2 id={`member-${member.id}-name`}>{name}</h2>
-        <p class="role">{role}</p>
-        {(affiliation || since) && <p class="aff">{[affiliation, since && `since ${since}`].filter(Boolean).join(' · ')}</p>}
+        <p class="role">{roleLine}</p>
+        {affLine && <p class="aff">{affLine}</p>}
       </div>
     </header>
 
     <p class="bio">{bio}</p>
+
+    {
+      alumni?.thesis && (
+        <section>
+          <h3>Thesis</h3>
+          <p class="thesis">{alumni.thesis}</p>
+        </section>
+      )
+    }
 
     {
       cosupervisors.length > 0 && (
@@ -129,6 +142,12 @@ const pubLink = (p: Publication) =>
 </script>
 
 <style>
+  .thesis {
+    margin: 0;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.1rem;
+  }
   .member-dialog {
     width: min(620px, calc(100% - 32px));
     max-height: min(86vh, 780px);
