@@ -198,14 +198,14 @@ a.card:hover {
 a.card:hover :is(h2, h3, p, .cta, a) {
   color: var(--on-fill) !important;
 }
-a.card:hover /* ---------- Controls in interactive figures (e.g. on project pages) ----------
+/* ---------- Controls in interactive figures (e.g. on project pages) ----------
    Buttons with class "pill". A selected tab (aria-selected / aria-checked) or a switched-on toggle
    (aria-pressed) stays filled red with white text. */
 .pills {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
 }
 .pills-label {
   font-size: 0.75rem;
@@ -262,7 +262,8 @@ button.pill:disabled {
   cursor: default;
 }
 
-.tag {
+/* tags inside a hovered (red) link tile */
+a.card:hover .tag {
   color: var(--on-fill) !important;
   border-color: color-mix(in srgb, var(--on-fill) 55%, transparent);
 }
