@@ -10,7 +10,7 @@ directions:
   - name: Domain structure and dynamics
     text: "Flows that incorporate the topology of the underlying domain, and the circulating and periodic dynamics of natural processes. ([↓](#pub-topological-flow-matching,curly-flow-matching))"
   - name: Controlling generation
-    text: "Steering what a model generates, through noise–data couplings, topological guidance during sampling, and goals stated in natural language. ([↓](#pub-global-transport-couplings,macroguide))"
+    text: "Steering what a model generates, through noise–data couplings, topological guidance during sampling, and goals stated in natural language. ([↓](#pub-global-transport-couplings,macroguide,llm-to-flow-distillation))"
   - name: Generative models for reasoning
     text: "Recurrent computation trained through denoising, spending more computation at inference and exploring several candidate solutions. ([↓](#pub-looped-flows))"
 ---
@@ -36,7 +36,8 @@ Another focus is controlling what a model generates. We study how the coupling b
 generation under classifier-free guidance ([↓](#pub-global-transport-couplings)), and develop methods that steer
 pretrained models during sampling, for instance using persistent homology to encourage the formation of large molecular
 rings and generate macrocycles ([↓](#pub-macroguide)). We also explore how objectives stated in natural language can be
-distilled into a pretrained generator, using a language model as a teacher.
+distilled into a pretrained generator, using a language model as a teacher
+([↓](#pub-llm-to-flow-distillation)).
 
 Finally, we view generative processes as a framework for reasoning. Training recurrent computation through denoising
 objectives allows a model to spend more computation at inference time and to explore several candidate solutions from
