@@ -2,6 +2,7 @@
 name: "Andrius Vaičenavičius"
 aliases: ["Andrius Vaicenavicius"]
 role: "PhD Student"
+photo: /team/andrius-vaicenavicius.jpg
 bio: "Andrius' DPhil in the group was on explanations for query answers over ontologies and existential rules. Before that, he studied Mathematics at Oxford, where his master's thesis won a Gibbs Prize."
 cosupervisors: ["Thomas Lukasiewicz"]
 links:

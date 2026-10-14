@@ -1,6 +1,7 @@
 ---
 name: "Ben Finkelshtein"
 role: "PhD Student"
+photo: /team/ben-finkelshtein.jpg
 bio: "Ben's DPhil in the group was on expressivity and generalisation in graph machine learning, from cooperative GNNs and learning on large graphs to recipes for graph foundation models. He is now a Research Scientist at Google."
 cosupervisors: ["Michael Bronstein"]
 areas: ["graphs-relational-learning"]

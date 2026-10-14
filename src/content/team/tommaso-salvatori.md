@@ -1,6 +1,7 @@
 ---
 name: "Tommaso Salvatori"
 role: "PhD Student"
+photo: /team/tommaso-salvatori.jpg
 bio: "Tommaso's DPhil in the group was on learning and memorisation via predictive coding, alongside work on knowledge base completion with box embeddings. He now works on predictive coding and brain-inspired learning at VERSES Research Lab."
 cosupervisors: ["Thomas Lukasiewicz"]
 links:
