@@ -1,4 +1,4 @@
-import { getNews, getPublications, getResearch, getTeam, formatDate } from '../lib/content';
+import { getNews, getPublications, getResearch, getTeam, formatDate, hasProjectPage, projectUrl } from '../lib/content';
 
 // Build-time search index, fetched by /search/.
 export async function GET() {
@@ -19,7 +19,7 @@ export async function GET() {
     ...pubs.map((p) => ({
       type: 'Publication',
       title: p.data.title,
-      url: `/publications/`,
+      url: hasProjectPage(p) ? projectUrl(p) : `/publications/`,
       meta: p.data.venue,
       text: [p.data.authors.join(' '), p.data.venue, p.data.abstract ?? ''].join(' '),
     })),

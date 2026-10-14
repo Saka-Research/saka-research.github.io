@@ -1,0 +1,583 @@
+---
+// Conceptual animation of "graph learning as completing a partially observed graph":
+//   1. a prior p(G) over complete graphs (drawn as a smooth density over an abstract axis of graphs),
+//   2. an observed graph with a query: a link (u, r1, w) in a multi-relational graph, or the class of a node v,
+//   3. the prior is updated to the posterior p(G | observed),
+//   4. the prediction is the posterior expectation of the queried part.
+// A switch selects the task (link prediction / node classification).
+// The densities are illustrative; the share shown in step 4 is computed from them.
+import katex from 'katex';
+
+const tex = (src: string) => katex.renderToString(src, { throwOnError: true });
+// typeset $…$ segments inside a sentence
+const withMath = (str: string) => str.replace(/\$([^$]+)\$/g, (_, m) => tex(m));
+
+// one sentence per step and task, shown under the plot
+const say = {
+  link: [
+    'Before seeing any data, the prior $p(G)$ spreads its probability over many possible complete graphs.',
+    'We observe part of a graph with several edge types, and ask about a missing piece: is there an edge $(u, r_1, w)$?',
+    'Conditioning on the observation turns the prior into the posterior $p(G \\mid G_{\\mathrm{obs}})$: only graphs that agree with what we observed keep their probability.',
+    'The prediction is the posterior expectation of the queried part: here, the share of posterior probability on graphs that contain the link $(u, r_1, w)$.',
+  ].map(withMath),
+  node: [
+    'Before seeing any data, the prior $p(G)$ spreads its probability over many possible complete graphs, including their node labels.',
+    'We observe a graph in which most nodes are labeled, and ask about a missing piece: the class $y_v$ of node $v$.',
+    'Conditioning on the observation turns the prior into the posterior $p(G \\mid G_{\\mathrm{obs}})$: only graphs that agree with what we observed keep their probability.',
+    'The prediction is the posterior expectation of the queried part: here, the share of posterior probability on graphs in which $v$ is in class A.',
+  ].map(withMath),
+};
+
+// small observed knowledge graph with three edge types (relations r1, r2, r3); query: is (u, r1, w) an edge?
+const pos: [number, number][] = [[16, 22], [16, 78], [50, 12], [84, 26], [84, 76], [50, 86], [36, 50], [66, 50]];
+const edges: [number, number, 1 | 2 | 3][] = [
+  [0, 2, 1], [2, 3, 2], [0, 6, 2], [1, 6, 1], [1, 5, 3], [5, 4, 1], [3, 7, 1], [4, 7, 2], [6, 2, 3], [5, 7, 3],
+];
+const U = 6; // query head u
+const W = 7; // query tail w
+// node classification: same layout, untyped edges, two classes; the class of v (= node 6) is unknown
+const nodeEdges: [number, number][] = [[0, 2], [2, 3], [0, 6], [1, 6], [1, 5], [5, 4], [3, 7], [4, 7], [6, 2], [5, 7], [6, 7]];
+const cls: (0 | 1 | null)[] = [0, 0, 1, 1, 1, 0, null, 1];
+const Q = 6;
+---
+
+<figure class="cpl" data-reveal data-say={JSON.stringify(say)}>
+  <div class="controls">
+    <div class="pills" role="radiogroup" aria-label="Task">
+      <span class="pills-label">Task</span>
+      <button type="button" class="pill" role="radio" aria-checked="true" data-task="link">Link prediction</button>
+      <button type="button" class="pill" role="radio" aria-checked="false" data-task="node">Node classification</button>
+    </div>
+    <div class="pills" role="tablist" aria-label="Step">
+      <span class="pills-label">Step</span>
+      {['Prior', 'Observe', 'Update', 'Predict'].map((s, i) => (
+        <button type="button" class="pill" role="tab" aria-selected={i === 0 ? 'true' : 'false'} data-go={i}>
+          <span class="num">{i + 1}</span>{s}
+        </button>
+      ))}
+      <button type="button" class="pill replay" aria-label="Replay">↻</button>
+    </div>
+  </div>
+
+  <div class="stage" data-step="0" data-task="link">
+    <div class="obs">
+      <div class="card">
+        <svg viewBox="0 0 100 100" class="g v-link" role="img" aria-label="Observed graph with three edge types; is there an edge of type r1 between u and w?">
+          {edges.map(([i, j, t]) => <line x1={pos[i][0]} y1={pos[i][1]} x2={pos[j][0]} y2={pos[j][1]} class={`e r${t}`} />)}
+          <line x1={pos[U][0]} y1={pos[U][1]} x2={pos[W][0]} y2={pos[W][1]} class="e r1 q" />
+          {pos.map(([x, y], i) => (
+            <circle cx={x} cy={y} r="6" class:list={['n', { qn: i === U || i === W }]} />
+          ))}
+          <text x={(pos[U][0] + pos[W][0]) / 2} y={pos[U][1] - 4} class="qm">?</text>
+          <text x={pos[U][0]} y={pos[U][1] + 15} class="vl">u</text>
+          <text x={pos[W][0]} y={pos[W][1] + 15} class="vl">w</text>
+        </svg>
+        <svg viewBox="0 0 100 100" class="g v-node" role="img" aria-label="Observed graph with two node classes; the class of node v is unknown">
+          {nodeEdges.map(([i, j]) => <line x1={pos[i][0]} y1={pos[i][1]} x2={pos[j][0]} y2={pos[j][1]} class="e plain" />)}
+          {pos.map(([x, y], i) => (
+            <circle cx={x} cy={y} r="6.5" class:list={['n', cls[i] === null ? 'unk' : `k${cls[i]}`]} />
+          ))}
+          <text x={pos[Q][0]} y={pos[Q][1] + 2.8} class="qm">?</text>
+          <text x={pos[Q][0]} y={pos[Q][1] + 15} class="vl">v</text>
+        </svg>
+        <div class="card-t">Observed graph</div>
+        <div class="card-s v-link">Query: is (<em>u</em>, <span class="rel">r₁</span>, <em>w</em>) an edge?</div>
+        <div class="card-s v-node">Query: the class of <em>v</em></div>
+        <div class="types v-link">
+          <span><i class="t r1"></i>r₁</span><span><i class="t r2"></i>r₂</span><span><i class="t r3"></i>r₃</span>
+        </div>
+        <div class="types v-node">
+          <span><i class="dot k0"></i>class A</span><span><i class="dot k1"></i>class B</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="plot">
+      <span class="lab lab-prior" set:html={tex('\\text{prior } p(G)')} />
+      <span class="lab lab-post" set:html={tex('\\text{posterior } p(G \\mid G_{\\mathrm{obs}})')} />
+      <svg viewBox="0 0 400 220" class="dens" role="img" aria-label="Prior and posterior over complete graphs">
+        <defs>
+          <clipPath id="cpl-left"><rect x="0" y="0" width="200" height="220" /></clipPath>
+          <clipPath id="cpl-right"><rect x="200" y="0" width="200" height="220" /></clipPath>
+        </defs>
+        <line x1="10" y1="190" x2="390" y2="190" class="axis" />
+        <path class="area a0" clip-path="url(#cpl-left)" />
+        <path class="area a1" clip-path="url(#cpl-right)" />
+        <path class="prior-ghost" />
+        <path class="curve" />
+        <line x1="200" y1="30" x2="200" y2="190" class="split" />
+        <text x="105" y="208" class="region r0 v-link">graphs that contain the link</text>
+        <text x="295" y="208" class="region r1 v-link">graphs without it</text>
+        <text x="105" y="208" class="region r0 v-node">graphs where <tspan font-style="italic">v</tspan> is in class A</text>
+        <text x="295" y="208" class="region r1 v-node">… where <tspan font-style="italic">v</tspan> is in class B</text>
+      </svg>
+      <div class="readout">
+        <span class="formula v-link" set:html={tex('\\mathbb{E}_{G \\sim p(\\cdot \\mid G_{\\mathrm{obs}})}\\big[\\, (u, r_1, w) \\in G \\,\\big] =')} />
+        <span class="formula v-node" set:html={tex('\\mathbb{E}_{G \\sim p(\\cdot \\mid G_{\\mathrm{obs}})}\\big[\\, y_v = \\mathrm{A} \\,\\big] =')} />
+        <strong class="val">—</strong>
+      </div>
+    </div>
+  </div>
+
+  <p class="say"></p>
+
+</figure>
+
+<script>
+  type Task = 'link' | 'node';
+
+  // densities on [0, 1] (x = abstract position in the space of complete graphs)
+  const K = 240;
+  const gauss = (x: number, m: number, s: number) => Math.exp(-0.5 * ((x - m) / s) ** 2);
+  const priorF = (x: number) => 0.9 * gauss(x, 0.22, 0.13) + 0.75 * gauss(x, 0.55, 0.16) + 0.6 * gauss(x, 0.84, 0.1);
+  // likelihood of each observation: high for graphs that agree with it
+  const likeF: Record<Task, (x: number) => number> = {
+    link: (x) => 1.0 * gauss(x, 0.3, 0.055) + 0.32 * gauss(x, 0.66, 0.05),
+    node: (x) => 0.85 * gauss(x, 0.18, 0.05) + 0.55 * gauss(x, 0.38, 0.05) + 0.45 * gauss(x, 0.78, 0.06),
+  };
+  const xs = Array.from({ length: K }, (_, i) => i / (K - 1));
+  const normalise = (ys: number[]) => {
+    const area = ys.reduce((s, y) => s + y, 0) / K;
+    return ys.map((y) => y / area);
+  };
+  const prior = normalise(xs.map(priorF));
+  const post: Record<Task, number[]> = {
+    link: normalise(xs.map((x, i) => prior[i] * likeF.link(x))),
+    node: normalise(xs.map((x, i) => prior[i] * likeF.node(x))),
+  };
+  const shareOf = (ys: number[]) => ys.reduce((s, y, i) => s + (xs[i] < 0.5 ? y : 0), 0) / ys.reduce((s, y) => s + y, 0);
+
+  // plot geometry
+  const X0 = 10;
+  const X1 = 390;
+  const Y0 = 190;
+  const H = 150;
+  const maxPrior = Math.max(...prior);
+  const px = (x: number) => X0 + x * (X1 - X0);
+  // the vertical scale follows the curve, so both the prior and the posterior fill the plot
+  const linePath = (ys: number[], ymax: number) =>
+    ys.map((y, i) => `${i ? 'L' : 'M'}${px(xs[i]).toFixed(1)},${(Y0 - (y / ymax) * H).toFixed(1)}`).join('');
+  const areaPath = (ys: number[], ymax: number) => `${linePath(ys, ymax)}L${X1},${Y0}L${X0},${Y0}Z`;
+
+  document.querySelectorAll<HTMLElement>('.cpl').forEach((root) => {
+    const SAY: Record<Task, string[]> = JSON.parse(root.dataset.say!);
+    const stage = root.querySelector<HTMLElement>('.stage')!;
+    const curve = root.querySelector<SVGPathElement>('.curve')!;
+    const ghost = root.querySelector<SVGPathElement>('.prior-ghost')!;
+    const areas = [...root.querySelectorAll<SVGPathElement>('.area')];
+    const val = root.querySelector<HTMLElement>('.val')!;
+    const say = root.querySelector<HTMLElement>('.say')!;
+    const btns = [...root.querySelectorAll<HTMLButtonElement>('[data-go]')];
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let step = -1;
+    let task: Task = 'link';
+    let cur = prior.slice(); // the curve currently drawn
+    let curMax = maxPrior; // its vertical scale
+    let raf = 0;
+    let timer = 0;
+    let touring = true;
+
+    function draw(ys: number[], ymax: number) {
+      curve.setAttribute('d', linePath(ys, ymax));
+      areas.forEach((a) => a.setAttribute('d', areaPath(ys, ymax)));
+      ghost.setAttribute('d', linePath(prior, ymax)); // the prior, on the same scale for comparison
+    }
+
+    // morph the drawn curve to a target density (the prior, or a task's posterior)
+    function morphTo(target: number[]) {
+      cancelAnimationFrame(raf);
+      const targetMax = Math.max(...target);
+      if (reduce) {
+        cur = target.slice();
+        curMax = targetMax;
+        draw(cur, curMax);
+        return;
+      }
+      const from = cur.slice();
+      const fromMax = curMax;
+      const t0 = performance.now();
+      const dur = 1400;
+      const tick = (now: number) => {
+        const k = Math.min(1, (now - t0) / dur);
+        const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        cur = from.map((y, i) => y + (target[i] - y) * e);
+        curMax = fromMax + (targetMax - fromMax) * e;
+        draw(cur, curMax);
+        if (k < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }
+
+    function go(k: number) {
+      step = k;
+      stage.dataset.step = String(k);
+      btns.forEach((b) => b.setAttribute('aria-selected', String(Number(b.dataset.go) === k)));
+      say.innerHTML = SAY[task][k];
+      val.textContent = shareOf(post[task]).toFixed(2);
+      morphTo(k >= 2 ? post[task] : prior);
+    }
+
+    root.querySelectorAll<HTMLButtonElement>('[data-task]').forEach((b) =>
+      b.addEventListener('click', () => {
+        if (b.tagName !== 'BUTTON') return;
+        task = b.dataset.task as Task;
+        stage.dataset.task = task;
+        root.querySelectorAll('button[data-task]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+        go(Math.max(step, 0)); // stay on the current step, now for the other task
+      }),
+    );
+
+    // calm automatic tour: prior → observe → update → predict, hold, repeat
+    function tour() {
+      window.clearTimeout(timer);
+      if (!touring || reduce) return;
+      const next = (step + 1) % 4;
+      timer = window.setTimeout(
+        () => {
+          go(next);
+          tour();
+        },
+        step === 3 ? 6000 : 3400,
+      );
+    }
+    const stopTour = () => {
+      touring = false;
+      window.clearTimeout(timer);
+    };
+
+    btns.forEach((b) =>
+      b.addEventListener('click', () => {
+        stopTour();
+        go(Number(b.dataset.go));
+      }),
+    );
+    root.querySelector('.replay')!.addEventListener('click', () => {
+      touring = true;
+      go(0);
+      tour();
+    });
+
+    draw(cur, curMax);
+    go(0);
+    if (reduce) {
+      go(3);
+      return;
+    }
+    new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && touring) tour();
+      else window.clearTimeout(timer);
+    }).observe(root);
+  });
+</script>
+
+<style>
+  .cpl {
+    max-width: 700px; /* compact box: it is a simple schematic */
+    margin: 32px auto;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--bg-elev);
+    --c0: var(--chart-1);
+    --c1: var(--chart-2);
+  }
+  .controls {
+    display: grid;
+    gap: 8px;
+  }
+  .num {
+    display: inline-grid;
+    place-items: center;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    font-size: 0.68rem;
+    font-weight: 700;
+    background: var(--line);
+    color: var(--text);
+  }
+  .pill[aria-selected='true'] .num {
+    background: rgba(255, 255, 255, 0.28);
+    color: #fff;
+  }
+  /* show the elements of the selected task only */
+  .stage[data-task='link'] .v-node,
+  .stage[data-task='node'] .v-link {
+    display: none;
+  }
+  .stage {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 18px;
+    align-items: center;
+    margin-top: 14px;
+  }
+  @media (max-width: 560px) {
+    .stage {
+      grid-template-columns: 1fr;
+    }
+    .obs {
+      max-width: 180px;
+    }
+  }
+
+  /* observed graph card: appears in step 2 */
+  .obs {
+    opacity: 0;
+    transform: translateY(8px);
+    transition:
+      opacity 0.6s ease,
+      transform 0.6s ease;
+  }
+  .stage:not([data-step='0']) .obs {
+    opacity: 1;
+    transform: none;
+  }
+  .card {
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg);
+    text-align: center;
+  }
+  .g {
+    width: 100%;
+    display: block;
+  }
+  .card-t {
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .card-s {
+    font-size: 0.74rem;
+    color: var(--muted);
+  }
+  .e {
+    stroke: var(--muted);
+    stroke-width: 2.4;
+    opacity: 0.75;
+  }
+  .n {
+    stroke: var(--bg);
+    stroke-width: 1.5;
+  }
+  .n {
+    fill: var(--bg-elev);
+    stroke: var(--text);
+    stroke-width: 1.4;
+  }
+  .n.qn {
+    stroke-width: 2.2;
+  }
+  .e.r1 {
+    stroke: var(--chart-1);
+    opacity: 1;
+  }
+  .e.r2 {
+    stroke: var(--chart-2);
+    opacity: 1;
+  }
+  .e.r3 {
+    stroke: var(--muted);
+    opacity: 0.9;
+  }
+  .e.plain {
+    stroke: var(--muted);
+    opacity: 0.8;
+  }
+  .n.k0 {
+    fill: var(--chart-1);
+    stroke: var(--bg);
+  }
+  .n.k1 {
+    fill: var(--chart-2);
+    stroke: var(--bg);
+  }
+  .n.unk {
+    fill: var(--bg);
+    stroke: var(--text);
+    stroke-dasharray: 2.5 2;
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+  }
+  .dot.k0 {
+    background: var(--chart-1);
+  }
+  .dot.k1 {
+    background: var(--chart-2);
+  }
+  .e.q {
+    stroke-dasharray: 3 2.5;
+    stroke-linecap: butt;
+    stroke-width: 2;
+  }
+  .types {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 6px;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  .types span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .t {
+    width: 14px;
+    height: 0;
+    border-top: 2.5px solid var(--muted);
+  }
+  .t.r1 {
+    border-top-color: var(--chart-1);
+  }
+  .t.r2 {
+    border-top-color: var(--chart-2);
+  }
+
+  .rel {
+    color: var(--chart-1);
+    font-weight: 600;
+  }
+  .qm {
+    font: 700 10px var(--font-sans);
+    fill: var(--text);
+    text-anchor: middle;
+  }
+  .vl {
+    font: italic 600 9px var(--font-sans);
+    fill: var(--muted);
+    text-anchor: middle;
+  }
+
+  /* density plot */
+  .dens {
+    width: 100%;
+    display: block;
+    overflow: visible;
+  }
+  .axis {
+    stroke: var(--muted);
+    stroke-width: 1;
+    opacity: 0.6;
+  }
+  .curve {
+    fill: none;
+    stroke: var(--text);
+    stroke-width: 1.4;
+    stroke-linejoin: round;
+  }
+  .prior-ghost {
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 0.9;
+    stroke-dasharray: 3 3;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+  .stage[data-step='2'] .prior-ghost,
+  .stage[data-step='3'] .prior-ghost {
+    opacity: 0.55;
+  }
+  .area {
+    stroke: none;
+    fill: var(--muted);
+    fill-opacity: 0.1;
+    transition:
+      fill 0.6s ease,
+      fill-opacity 0.6s ease;
+  }
+  .stage[data-step='3'] .a0 {
+    fill: var(--c0);
+    fill-opacity: 0.45;
+  }
+  .stage[data-step='3'] .a1 {
+    fill: var(--muted);
+    fill-opacity: 0.3;
+  }
+  .split {
+    stroke: var(--muted);
+    stroke-dasharray: 2 3;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .region {
+    font: 12px var(--font-sans);
+    text-anchor: middle;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .region.r0 {
+    fill: var(--c0);
+  }
+  .region.r1 {
+    fill: var(--muted);
+  }
+  .region.r1.v-node {
+    fill: var(--chart-2);
+  }
+  .stage[data-task='node'][data-step='3'] .a1 {
+    fill: var(--chart-2);
+    fill-opacity: 0.45;
+  }
+  .stage[data-step='3'] .split,
+  .stage[data-step='3'] .region {
+    opacity: 1;
+  }
+  .plot {
+    position: relative;
+  }
+  .lab {
+    position: absolute;
+    top: 0;
+    left: 6px;
+    font-size: 0.85rem;
+    transition: opacity 0.5s ease;
+  }
+  .lab-post {
+    opacity: 0;
+  }
+  .stage[data-step='2'] .lab-prior,
+  .stage[data-step='3'] .lab-prior {
+    opacity: 0;
+  }
+  .stage[data-step='2'] .lab-post,
+  .stage[data-step='3'] .lab-post {
+    opacity: 1;
+  }
+
+  .readout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: 0.9rem;
+    opacity: 0;
+    transform: translateY(6px);
+    transition:
+      opacity 0.6s ease 0.3s,
+      transform 0.6s ease 0.3s;
+  }
+  .stage[data-step='3'] .readout {
+    opacity: 1;
+    transform: none;
+  }
+  .val {
+    font-size: 1.35rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--c0);
+  }
+
+  .say {
+    margin: 14px 0 0;
+    min-height: 2.9em;
+    font-size: 0.9rem;
+  }
+</style>

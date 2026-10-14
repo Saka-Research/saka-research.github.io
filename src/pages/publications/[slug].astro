@@ -1,0 +1,363 @@
+---
+// Project page for a publication written as .mdx (with a text body), e.g. src/content/publications/wander.mdx.
+import { render } from 'astro:content';
+import 'katex/dist/katex.min.css';
+import Base from '../../layouts/Base.astro';
+import WalkCanvas from '../../components/WalkCanvas.astro';
+import { getPublications, getMemberNames, normalizeName, formatMonth, hasProjectPage, type Publication } from '../../lib/content';
+
+export async function getStaticPaths() {
+  const pubs = (await getPublications()).filter(hasProjectPage);
+  return pubs.map((pub) => ({ params: { slug: pub.id }, props: { pub } }));
+}
+
+const { pub } = Astro.props as { pub: Publication };
+const { title, authors, venue, venueNote, date, abstract, pdf, arxiv, doi, code, project, bibtex, hero } = pub.data;
+const { Content } = await render(pub);
+const members = await getMemberNames();
+
+const splitMarks = (a: string) => {
+  const m = a.match(/^(.*?)([*†‡]*)$/)!;
+  return { name: m[1].trim(), marks: m[2] };
+};
+const links = [
+  pdf && { label: 'PDF', href: pdf },
+  arxiv && { label: 'arXiv', href: `https://arxiv.org/abs/${arxiv}` },
+  doi && { label: 'DOI', href: `https://doi.org/${doi}` },
+  code && { label: 'Code', href: code },
+  project && { label: 'Project', href: project },
+].filter(Boolean) as { label: string; href: string }[];
+---
+
+<Base title={title} description={abstract?.slice(0, 200)}>
+  {
+    hero && (
+      <div class="paper-hero" aria-hidden="true">
+        {hero === 'walks' && <WalkCanvas />}
+      </div>
+    )
+  }
+  <article class:list={['container', 'page', { 'has-hero': hero }]}>
+    <header class="head" data-reveal>
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a href="/">Home</a>
+        <span aria-hidden="true">›</span>
+        <a href="/publications/">Publications</a>
+      </nav>
+      <p class="meta">
+        {venue}{venueNote && <strong> · {venueNote}</strong>} · {formatMonth(date)}
+      </p>
+      <h1>{title}</h1>
+      <p class="authors">
+        {
+          authors.map((a, i) => {
+            const { name, marks } = splitMarks(a);
+            return (
+              <>
+                {members.has(normalizeName(name)) ? <span class="member">{name}</span> : name}
+                {marks && <sup>{marks}</sup>}
+                {i < authors.length - 1 && ', '}
+              </>
+            );
+          })
+        }
+      </p>
+      {
+        links.length > 0 && (
+          <div class="links">
+            {links.map((l) => (
+              <a href={l.href} class="pill">
+                {l.label}
+              </a>
+            ))}
+          </div>
+        )
+      }
+    </header>
+
+    <div class="prose" data-reveal>
+      <Content />
+    </div>
+
+    {
+      bibtex && (
+        <section class="bibtex" data-reveal>
+          <div class="bib-head">
+            <h2>Cite</h2>
+            <button type="button" class="copy">
+              Copy BibTeX
+            </button>
+          </div>
+          <pre><code>{bibtex.trim()}</code></pre>
+        </section>
+      )
+    }
+  </article>
+</Base>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.copy').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const text = btn.closest('.bibtex')?.querySelector('code')?.textContent ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = 'Copied ✓';
+      } catch {
+        btn.textContent = 'Copy failed';
+      }
+      setTimeout(() => (btn.textContent = 'Copy BibTeX'), 1800);
+    });
+  });
+</script>
+
+<style>
+  .page {
+    position: relative;
+    max-width: calc(var(--maxw-text) + 160px);
+    padding-top: 32px;
+  }
+  .paper-hero {
+    position: absolute;
+    top: 68px;
+    left: 0;
+    right: 0;
+    height: 460px;
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, #000 55%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  }
+  .has-hero {
+    padding-top: 96px;
+  }
+  .head {
+    margin: 8px 0 36px;
+    padding-bottom: 28px;
+    border-bottom: 1.5px solid var(--line);
+  }
+  .crumbs {
+    display: flex;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .crumbs a {
+    color: var(--muted);
+  }
+  .crumbs a:hover {
+    color: var(--text);
+  }
+  .meta {
+    margin: 22px 0 0;
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .meta strong {
+    color: var(--accent);
+  }
+  h1::before {
+    content: '';
+    display: block;
+    width: 44px;
+    height: 4px;
+    margin: 0 0 18px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  h1 {
+    margin: 16px 0 14px;
+    font-size: clamp(2.1rem, 5.2vw, 3.2rem);
+    line-height: 1.1;
+  }
+  .authors {
+    margin: 0;
+    color: var(--muted);
+  }
+  .member {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  sup {
+    font-size: 0.7em;
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .links .pill:hover {
+    background: var(--fill);
+    border-color: var(--fill);
+    color: var(--on-fill);
+  }
+
+  /* ---- Article body ---- */
+  .prose {
+    max-width: none;
+  }
+  .prose :global(h2) {
+    font-size: 1.9rem;
+    margin-top: 1.8em;
+  }
+  .prose :global(h2::before) {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 3px;
+    margin-bottom: 12px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .prose :global(h3) {
+    font-size: 1.45rem;
+    margin-top: 1.6em;
+  }
+  /* guiding questions: big serif question word in red, statement in italics */
+  .prose :global(.questions) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px 40px;
+    margin: 32px 0;
+  }
+  @media (max-width: 640px) {
+    .prose :global(.questions) {
+      grid-template-columns: 1fr;
+    }
+  }
+  .prose :global(.q) {
+    margin: 0;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.5rem;
+    font-weight: 500;
+    line-height: 1.35;
+  }
+  .prose :global(.q-word) {
+    font-size: 2.2em;
+    font-style: italic;
+    font-weight: 500;
+    line-height: 0.9;
+    color: var(--accent);
+    margin-right: 0.08em;
+  }
+  /* expandable "more details" box with a figure */
+  .prose :global(details.more) {
+    margin: 22px 0;
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+  }
+  .prose :global(details.more summary) {
+    cursor: pointer;
+    padding: 10px 16px;
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--accent);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .prose :global(details.more summary::-webkit-details-marker) {
+    display: none;
+  }
+  .prose :global(details.more summary::before) {
+    content: '▸';
+    transition: transform 0.2s ease;
+  }
+  .prose :global(details.more[open] summary::before) {
+    transform: rotate(90deg);
+  }
+  .prose :global(details.more figure) {
+    margin: 0;
+    padding: 4px 16px 16px;
+  }
+  .prose :global(details.more img) {
+    display: block;
+    width: 100%;
+    border-radius: 4px;
+    background: #fff; /* the figure has a white background; keep it readable in dark mode */
+    padding: 8px;
+  }
+  .prose :global(details.more figcaption) {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .prose :global(details.more figcaption strong) {
+    color: var(--text);
+  }
+  .prose :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 0.9rem;
+    display: block;
+    overflow-x: auto;
+  }
+  .prose :global(th),
+  .prose :global(td) {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .prose :global(th) {
+    font-weight: 600;
+    border-bottom-color: color-mix(in srgb, var(--text) 25%, var(--line));
+  }
+  .prose :global(tr:last-child td) {
+    border-bottom: 0;
+  }
+  .prose :global(.katex-display) {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 0;
+  }
+
+  /* ---- Citation ---- */
+  .bibtex {
+    margin-top: 56px;
+  }
+  .bib-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .bib-head h2 {
+    font-size: 1.6rem;
+    margin: 0;
+  }
+  .copy {
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 6px 14px;
+    border-radius: 99px;
+    border: 1.5px solid var(--line);
+    background: var(--bg-elev);
+    color: var(--text);
+    cursor: pointer;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .copy:hover {
+    background: var(--fill);
+    border-color: var(--fill);
+    color: var(--on-fill);
+  }
+  .bibtex pre {
+    margin-top: 14px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    background: var(--bg-elev);
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius);
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+</style>

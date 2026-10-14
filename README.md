@@ -28,9 +28,16 @@ People and publications are linked to research areas via `areas: [<research-file
 "People" and "Selected Publications" sections on each research page and the filter chips on `/publications/`.
 Group members are highlighted automatically in author lists (matched by `name` and `aliases`).
 
+## Project pages for papers
+
+A paper written as `.mdx` with a text body (e.g. `src/content/publications/wander.mdx`) gets its own page at
+`/publications/<file-name>/`. Its card on the Publications, research and team pages then links to that page
+(and turns red on hover) instead of showing PDF/code links. Components for such pages live in
+`src/components/<paper>/`, citations in `src/components/cite/`, data files in `public/data/`.
+
 ## Pages
 
-`/` · `/research/` · `/research/<area>/` · `/team/` · `/publications/` · `/news/` · `/news/<post>/` ·
+`/` · `/research/` · `/research/<area>/` · `/team/` · `/publications/` · `/publications/<paper>/` · `/news/` · `/news/<post>/` ·
 `/archives/` · `/join/` · `/search/` · `/rss.xml`
 
 ## Deploy (GitHub Pages)

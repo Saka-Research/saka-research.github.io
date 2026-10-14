@@ -1,0 +1,317 @@
+---
+// Section 7.3 / Table 6 of the Wander paper: knowledge-graph entity prediction (MRR) with and without
+// edge types and node features. Wander never saw a graph with both during pretraining.
+// Two switches change the sketch on the left and highlight the matching results on the right.
+type Config = 'none' | 'feat' | 'types' | 'both';
+const configs: { id: Config; label: string }[] = [
+  { id: 'none', label: 'Neither' },
+  { id: 'feat', label: 'Node features only' },
+  { id: 'types', label: 'Edge types only' },
+  { id: 'both', label: 'Both' },
+];
+const datasets: { name: string; mrr: Record<Config, number> }[] = [
+  { name: 'ConceptNet100k', mrr: { none: 0.135, feat: 0.202, types: 0.258, both: 0.334 } },
+  { name: 'WN-v1 – WN-v4', mrr: { none: 0.162, feat: 0.273, types: 0.626, both: 0.637 } },
+  { name: 'WN18RR', mrr: { none: 0.116, feat: 0.163, types: 0.55, both: 0.564 } },
+];
+const MAX = 0.7; // axis 0 – 0.7 MRR
+
+// small knowledge-graph sketch: nodes (x, y) and typed edges (from, to, type)
+const nodes = [
+  [40, 50], [120, 30], [200, 60], [70, 130], [160, 140], [250, 130], [110, 200], [215, 205],
+];
+const edges: [number, number, number][] = [
+  [0, 1, 0], [1, 2, 1], [0, 3, 2], [1, 4, 0], [2, 5, 2], [3, 4, 1], [4, 5, 0], [3, 6, 0], [4, 7, 2], [6, 7, 1], [5, 7, 1],
+];
+const featHeights = nodes.map((_, i) => [6 + ((i * 7) % 9), 4 + ((i * 5) % 11), 3 + ((i * 3) % 8)]);
+---
+
+<figure class="comp" data-reveal>
+  <div class="pills" role="group" aria-label="Information available to Wander">
+    <button type="button" class="pill t-types" aria-pressed="false">Edge types</button>
+    <button type="button" class="pill t-feat" aria-pressed="false">Node features</button>
+    <span class="pills-label">(node features: text embeddings of entity names)</span>
+  </div>
+
+  <div class="stage" data-config="none">
+    <svg class="kg" viewBox="0 0 290 240" role="img" aria-label="Sketch of a knowledge graph">
+      <defs>
+        {[0, 1, 2].map((t) => (
+          <marker id={`arrow-${t}`} viewBox="0 0 10 10" refX="19" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class={`ah t${t}`} />
+          </marker>
+        ))}
+      </defs>
+      {
+        edges.map(([a, b, t]) => (
+          <line
+            x1={nodes[a][0]}
+            y1={nodes[a][1]}
+            x2={nodes[b][0]}
+            y2={nodes[b][1]}
+            class={`edge t${t}`}
+            marker-end={`url(#arrow-${t})`}
+          />
+        ))
+      }
+      {
+        nodes.map(([x, y], i) => (
+          <g class="node">
+            <circle cx={x} cy={y} r="9" />
+            <g class="feat">
+              {featHeights[i].map((hgt, k) => (
+                <rect x={x + 13 + k * 5} y={y + 4 - hgt} width="3.5" height={hgt} rx="0.8" class={`fb k${k}`} />
+              ))}
+            </g>
+          </g>
+        ))
+      }
+    </svg>
+
+    <div class="bars">
+      <div class="metric">Entity prediction, MRR · higher is better →</div>
+      {
+        datasets.map((d) => (
+          <div class="ds">
+            <div class="ds-name">{d.name}</div>
+            {configs.map((c) => (
+              <div class="row" data-row={c.id}>
+                <span class="row-l">{c.label}</span>
+                <span class="track-b">
+                  <span class="fill" style={`--w:${(d.mrr[c.id] / MAX) * 100}%`} />
+                </span>
+                <span class="val">{d.mrr[c.id].toFixed(3)}</span>
+              </div>
+            ))}
+          </div>
+        ))
+      }
+      <div class="axis">
+        <span>0</span>
+        <span>0.35</span>
+        <span>0.7</span>
+      </div>
+    </div>
+  </div>
+
+  <figcaption>
+    From Table 6 of the paper. During pretraining Wander sees node features only on simple graphs and edge types
+    only on knowledge graphs, never both together. Each source of information helps on its own, and combining them
+    is best on all three benchmarks.
+  </figcaption>
+</figure>
+
+<script>
+  document.querySelectorAll<HTMLElement>('.comp').forEach((root) => {
+    const stage = root.querySelector<HTMLElement>('.stage')!;
+    const types = root.querySelector<HTMLButtonElement>('.t-types')!;
+    const feat = root.querySelector<HTMLButtonElement>('.t-feat')!;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let timer = 0;
+    const on = (b: HTMLButtonElement) => b.getAttribute('aria-pressed') === 'true';
+    const set = (b: HTMLButtonElement, v: boolean) => b.setAttribute('aria-pressed', String(v));
+
+    const apply = () => {
+      stage.dataset.config = on(types) ? (on(feat) ? 'both' : 'types') : on(feat) ? 'feat' : 'none';
+    };
+    const stopTour = () => window.clearInterval(timer);
+    [types, feat].forEach((b) =>
+      b.addEventListener('click', () => {
+        stopTour(); // the reader took over
+        set(b, !on(b));
+        apply();
+      }),
+    );
+
+    // gentle guided tour through the four settings until the reader interacts
+    const order: [boolean, boolean][] = [
+      [false, false],
+      [false, true],
+      [true, false],
+      [true, true],
+    ];
+    let k = 0;
+    const tick = () => {
+      k = (k + 1) % order.length;
+      set(types, order[k][0]);
+      set(feat, order[k][1]);
+      apply();
+    };
+    apply();
+    if (!reduce) {
+      const io = new IntersectionObserver(([e]) => {
+        stopTour();
+        if (e.isIntersecting) timer = window.setInterval(tick, 2600);
+      });
+      io.observe(root);
+      root.addEventListener('pointerdown', () => {
+        stopTour();
+        io.disconnect();
+      });
+    }
+  });
+</script>
+
+<style>
+  .comp {
+    margin: 32px 0;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--bg-elev);
+  }
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    gap: 18px;
+    margin-top: 14px;
+    align-items: center;
+  }
+  @media (max-width: 640px) {
+    .stage {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* knowledge-graph sketch */
+  .kg {
+    width: 100%;
+    display: block;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .edge {
+    stroke: var(--muted);
+    stroke-width: 2;
+    opacity: 0.55;
+    transition:
+      stroke 0.4s ease,
+      opacity 0.4s ease;
+  }
+  .ah {
+    fill: var(--muted);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .stage[data-config='types'] .edge,
+  .stage[data-config='both'] .edge {
+    opacity: 1;
+  }
+  .stage[data-config='types'] .edge.t0,
+  .stage[data-config='both'] .edge.t0 {
+    stroke: var(--chart-1);
+  }
+  .stage[data-config='types'] .edge.t1,
+  .stage[data-config='both'] .edge.t1 {
+    stroke: var(--chart-2);
+  }
+  .stage[data-config='types'] .edge.t2,
+  .stage[data-config='both'] .edge.t2 {
+    stroke-dasharray: 5 3;
+  }
+  .stage[data-config='types'] .ah,
+  .stage[data-config='both'] .ah {
+    opacity: 1;
+  }
+  .ah.t0 {
+    fill: var(--chart-1);
+  }
+  .ah.t1 {
+    fill: var(--chart-2);
+  }
+  .node circle {
+    fill: var(--bg-elev);
+    stroke: var(--text);
+    stroke-width: 1.6;
+  }
+  .feat {
+    opacity: 0;
+    transform: translateY(4px);
+    transition:
+      opacity 0.4s ease,
+      transform 0.4s ease;
+  }
+  .stage[data-config='feat'] .feat,
+  .stage[data-config='both'] .feat {
+    opacity: 1;
+    transform: none;
+  }
+  .fb {
+    fill: var(--accent);
+  }
+  .fb.k1 {
+    opacity: 0.7;
+  }
+  .fb.k2 {
+    opacity: 0.45;
+  }
+
+  /* results */
+  .metric {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .ds + .ds {
+    margin-top: 10px;
+  }
+  .ds-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 118px 1fr 42px;
+    align-items: center;
+    gap: 8px;
+    height: 19px;
+    font-size: 0.74rem;
+    color: var(--muted);
+    transition: color 0.3s ease;
+  }
+  .track-b {
+    position: relative;
+    height: 8px;
+    border-radius: 0 4px 4px 0;
+    background: color-mix(in srgb, var(--line) 50%, transparent);
+  }
+  .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--w);
+    border-radius: 0 4px 4px 0;
+    background: color-mix(in srgb, var(--muted) 45%, transparent);
+    transition: background 0.3s ease;
+  }
+  .val {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .stage[data-config='none'] .row[data-row='none'],
+  .stage[data-config='feat'] .row[data-row='feat'],
+  .stage[data-config='types'] .row[data-row='types'],
+  .stage[data-config='both'] .row[data-row='both'] {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .stage[data-config='none'] .row[data-row='none'] .fill,
+  .stage[data-config='feat'] .row[data-row='feat'] .fill,
+  .stage[data-config='types'] .row[data-row='types'] .fill,
+  .stage[data-config='both'] .row[data-row='both'] .fill {
+    background: var(--chart-1);
+  }
+  .axis {
+    display: flex;
+    justify-content: space-between;
+    margin: 6px 50px 0 126px;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  figcaption {
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+</style>

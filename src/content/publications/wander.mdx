@@ -1,0 +1,194 @@
+---
+title: "To Learn is to Wander: Learning Across Graphs and Tasks with Random Walks"
+authors: ["Louis Tichelman", "Xingyue Huang", "Jinwoo Kim", "İsmail İlkan Ceylan"]
+venue: arXiv preprint
+date: 2026-10-05
+abstract: "Graph foundation models aim to transfer across graphs, feature spaces, relational schemas, and prediction tasks, yet existing approaches typically generalize only within particular graph modalities or tasks. We propose Wander, a graph foundation model designed to operate across these settings within a single pretrained checkpoint. Following the prior-predictive perspective, we formulate graph learning as completion of a partially observed graph. We realize this task-general view through a common interface based on random walks, allowing the same model to operate across homogeneous and multi-relational graphs with varying features, labels, and relational schemas. Wander can increase its structural context at inference time without changing its learned parameters and, under suitable assumptions, universally approximates the corresponding Bayes-optimal predictor on bounded connected graphs. Empirically, a single pretrained checkpoint achieves state-of-the-art or highly competitive results across node classification, homogeneous link prediction, and knowledge-graph link prediction. Moreover, joint pretraining across graph modalities and tasks preserves performance in specialized settings while enabling positive transfer and the composition of separately learned capabilities at inference time."
+areas: ["graphs-relational-learning"]
+arxiv: "2610.06694"
+pdf: https://arxiv.org/pdf/2610.06694
+code: https://github.com/louistichelman/wander-gfm
+featured: true
+bibtex: |
+  @article{tichelman2026wander,
+    title   = {To Learn is to Wander: Learning Across Graphs and Tasks with Random Walks},
+    author  = {Tichelman, Louis and Huang, Xingyue and Kim, Jinwoo and Ceylan, {\.I}smail {\.I}lkan},
+    journal = {arXiv preprint arXiv:2610.06694},
+    year    = {2026}
+  }
+hero: walks # animated background on the project page
+---
+
+import Results from '../../components/wander/Results.astro';
+import GridsModel from '../../components/wander/GridsModel.astro';
+import CoverageTable from '../../components/wander/CoverageTable.astro';
+import Composition from '../../components/wander/Composition.astro';
+import Completion from '../../components/wander/Completion.astro';
+import Cite from '../../components/cite/Cite.astro';
+
+## TL;DR
+
+**Wander** is a **graph foundation model** that uses random walks to handle node classification,
+link prediction and knowledge-graph reasoning across unseen graphs within one pretrained checkpoint.
+
+## Abstract
+
+Graph foundation models aim to transfer across graphs, feature spaces, relational schemas, and prediction tasks, yet
+existing approaches typically generalize only within particular graph modalities or tasks. We propose Wander, a
+graph foundation model designed to operate across these settings within a *single pretrained checkpoint*. Following
+the prior-predictive perspective, we formulate graph learning as completion of a partially observed graph. We
+realize this task-general view through a common interface based on random walks, allowing the same model to
+operate across homogeneous and multi-relational graphs with varying features, labels, and relational schemas.
+Wander can increase its structural context at inference time without changing its learned parameters and, under
+suitable assumptions, universally approximates the corresponding Bayes-optimal predictor on bounded connected
+graphs. Empirically, a single pretrained checkpoint achieves state-of-the-art or highly competitive results across
+node classification, homogeneous link prediction, and knowledge-graph link prediction. Moreover, joint pretraining
+across graph modalities and tasks preserves performance in specialized settings while enabling positive transfer
+and the composition of separately learned capabilities at inference time.
+
+## Background
+
+Graph-structured data is everywhere, from molecules and citation networks to social systems and knowledge graphs.
+Traditionally, a new model is trained for every graph and every task. *Graph foundation models* aim to change that:
+one pretrained model that transfers to new graphs, feature spaces, relation types and prediction problems.
+
+So far, however, the landscape is fragmented. Each family of foundation models covers only part of the space:
+
+<CoverageTable />
+
+A general graph foundation model therefore has to answer two questions:
+
+<div class="questions">
+  <p class="q"><span class="q-word">What</span> predictive function should a general graph foundation model learn?</p>
+  <p class="q"><span class="q-word">How</span> can a single architecture realize this function across previously unseen
+  graphs, feature spaces, relations and tasks?</p>
+</div>
+
+This work makes three contributions toward answering these questions:
+
+## 1. Graph learning as completing a graph
+
+We answer the first question through a probabilistic view of graph
+learning. Following the prior-predictive perspective of TabPFN <Cite k="hollmann2023" />, we view an observed graph as
+a partially specified realization of an underlying complete graph drawn from a graph distribution. Node- and
+edge-level prediction problems can then be expressed as completion tasks on this partially observed graph:
+completing node labels corresponds to node classification, while completing edges corresponds to link prediction.
+More generally, each task defines a query about an unobserved component of the graph, with the Bayes-optimal
+prediction given by the posterior expectation of the query-dependent target conditioned on the observation. This
+gives one predictive function across graph-learning tasks.
+
+<Completion />
+
+## 2. Random walks as a common interface
+
+Realizing this task-general predictor requires a common interface that can
+operate across varying graph structures, feature spaces, relations, and label spaces. We propose Wander, which uses
+random walks as this interface. Random walks have a long history in graph learning
+<Cite k="perozzi2014, grover2016, tonshoff2021, tan2023, kim2025" />, and have recently re-emerged as a computational
+primitive in knowledge graph foundation models <Cite k="kim2026" />. Wander extends this interface across graph
+settings and prediction tasks by representing features, labels, and structure through separate channels and
+processing their information along sampled walks, enabling a single architecture to operate on homogeneous and
+multi-relational graphs, accommodate varying feature and label spaces, and answer both node- and edge-level
+queries. It has three properties particularly useful for a foundation model.
+
+- **Adaptive structural context.** Unlike message-passing GFMs <Cite k="finkelshtein2025, eremeev2026" />, whose
+  structural context is fixed by network depth, Wander can flexibly adjust its structural context at inference time
+  by varying its random-walk sampling strategy, without modifying its learned parameters (see
+  [Looking further without retraining](#looking-further-without-retraining) below, and
+  [Section 7.4](https://arxiv.org/html/2610.06694v1#S7.SS4) in the paper).
+- **Universality.** Random walks can capture structural properties beyond standard message passing architectures.
+  We formalize this by showing that, under suitable capacity assumptions, Wander is a universal approximator of the
+  Bayes-optimal graph predictor on bounded connected graphs
+  ([Theorem 6.1](https://arxiv.org/html/2610.06694v1#S6.Thmtheorem1)).
+- **Permutation equivariance.** Wander is permutation equivariant in distribution, allowing stochastic symmetry
+  breaking while respecting graph symmetries at the distributional level to facilitate generalization
+  ([Proposition 6.2](https://arxiv.org/html/2610.06694v1#S6.Thmtheorem2)).
+
+<details class="more">
+  <summary>More details on Wander’s architecture</summary>
+  <figure>
+    <img src="/papers/wander/architecture.png" width="2800" height="848" alt="Overview of the Wander architecture: input encoding for node classification and link prediction, the three updates inside each Wander layer, and the task-specific readouts." loading="lazy" />
+    <figcaption>
+      <strong>Overview of Wander.</strong> Each layer combines (1) intra-node attention across feature,
+      label, and structure tokens; (2) in-context attention from each node to context nodes within the same channel;
+      and (3) a stochastic structural update that processes sampled walks and aggregates proposals through a
+      consensus protocol. After <em>L</em> layers, task-specific readouts map the query node’s label tokens to class
+      probabilities or each candidate node’s structure token to a link probability.
+    </figcaption>
+  </figure>
+</details>
+
+## 3. A generalist model with compositional and adaptable capabilities
+
+Empirically, we evaluate a single pretrained Wander checkpoint across node classification, homogeneous link
+prediction, and knowledge-graph link prediction, obtaining state-of-the-art or highly competitive results across all
+three settings. Beyond this breadth, joint pretraining yields positive transfer across graph-learning settings.
+Further to this, Wander can combine separately learned capabilities to solve new task settings. Finally, its
+random-walk interface supports adaptation without parameter updates: expanding or targeting the sampled context
+improves long-range reasoning on synthetic and real-world graphs. Together, these findings show benefits of
+unification beyond task coverage alone.
+
+### One checkpoint across three settings
+
+A single pretrained checkpoint, evaluated zero-shot, against foundation models specialized to each setting and,
+where available, models trained on each dataset:
+
+<Results />
+
+
+### Combining what it learned separately
+
+During pretraining Wander sees node features
+on simple graphs and edge types on knowledge graphs, never both in the same graph. To test whether it can use
+both at once, the knowledge graphs below are augmented with node features: text embeddings of each entity's name
+(MiniLM). Both sources of information help on their own, and using them together works best on all three
+benchmarks, even though Wander never encountered this kind of graph during training.
+
+<Composition />
+
+### Looking further without retraining
+
+A distinctive property of Wander is that its structural computation remains adjustable after training: we can
+vary the number and length of sampled walks, as well as the sampling mechanism, without changing learned
+parameters. 
+The **Grids** benchmark
+makes this concrete:  It consists of five disconnected 25 × 25 grids,
+one per class, with only two randomly labeled nodes per grid;
+test nodes are on average 11 hops from their nearest labeled
+node. Increasing the walk length on this graph progressively propagates information from the labeled context nodes across the graph. With walks of length 4, the pretrained model reaches 56.6% accuracy, with length 64 it reaches 96.6%, while other graph foundation models stay at 20–27% on this task.
+
+And inference-time adaptation is not limited to changing the walk
+budget. As a simple example, we additionally modify the sampling mechanism by retaining only length-64 walks that visit at
+least one labeled context node. This targeted sampling further
+increases accuracy on Grids to 100%, illustrating that Wander can adapt not only *how much* but also *which* information
+is collected.
+
+
+
+<GridsModel />
+
+The same effect carries over to real graphs with sparse labels. On PubMed, Full DBLP, Coauthor CS and Coauthor
+Physics with all node features removed, Wander averages 76.5% accuracy (78.3% with filtered walks), compared with
+60.1% for the best other foundation model.
+
+## Conclusion and outlook
+
+Wander shows that a graph foundation model does not have to be organized around a single graph modality or task.
+Framing graph learning as completing a partially observed graph gives one predictive objective, and random walks
+give one interface for realizing it, so a single checkpoint handles node classification, homogeneous link
+prediction and knowledge-graph reasoning.
+
+This points to three directions:
+
+- **Shared interfaces instead of specialized architectures.** A new kind of graph or task becomes a new input to an
+  existing model rather than a reason to design a new one. Next steps include node regression, graph
+  classification, and a broader prior with graphs that combine node features and edge types.
+- **Composable capabilities.** Wander combined node features and edge types although it never saw both together
+  during pretraining. Capabilities learned in one setting and reused in another can cover more than the training
+  distribution contains explicitly.
+- **Adaptability at inference time.** Because the structural context is sampled rather than fixed, the same model
+  can gather longer-range or more targeted information after training; smarter sampling could make this cheaper and
+  more powerful.
+
+Together, these suggest foundation models for structured data that are adaptable by design: one shared interface,
+composable capabilities, and computation adjusted to the problem at hand.

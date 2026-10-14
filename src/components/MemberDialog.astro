@@ -1,7 +1,7 @@
 ---
 import Avatar from './Avatar.astro';
 import Icon from './Icon.astro';
-import { formatMonth, type Member, type Publication, type Research } from '../lib/content';
+import { formatMonth, hasProjectPage, projectUrl, type Member, type Publication, type Research } from '../lib/content';
 
 interface Props {
   member: Member;
@@ -21,7 +21,9 @@ const contacts = [
 ].filter(Boolean) as { name: 'website' | 'scholar' | 'github' | 'x' | 'linkedin' | 'email'; href: string; label: string }[];
 
 const pubLink = (p: Publication) =>
-  p.data.pdf ?? (p.data.arxiv ? `https://arxiv.org/abs/${p.data.arxiv}` : p.data.doi ? `https://doi.org/${p.data.doi}` : p.data.project);
+  hasProjectPage(p)
+    ? projectUrl(p)
+    : p.data.pdf ?? (p.data.arxiv ? `https://arxiv.org/abs/${p.data.arxiv}` : p.data.doi ? `https://doi.org/${p.data.doi}` : p.data.project);
 ---
 
 <dialog class="member-dialog" id={`member-${member.id}`} data-member-dialog={member.id} aria-labelledby={`member-${member.id}-name`}>

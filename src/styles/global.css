@@ -13,6 +13,10 @@
   --glow: rgba(178, 58, 46, 0.09);
   --sun: #c8473a;
   --fill: #b23a2e; /* solid red for selected / hovered elements */
+  /* chart marks on project pages: goldfinch red vs. indigo ink, distinguishable for colour-blind readers */
+  --chart-1: #b23a2e;
+  --chart-2: #34508a;
+  --chart-muted: #c9c2b4;
   --on-fill: #ffffff;
 
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -49,6 +53,9 @@
     --glow: rgba(229, 112, 95, 0.12);
     --sun: #a5392e;
     --fill: #b8382c;
+    --chart-1: #e5705f;
+    --chart-2: #86a2d8;
+    --chart-muted: #4d4940;
     color-scheme: dark;
   }
 }
@@ -64,6 +71,9 @@
   --glow: rgba(229, 112, 95, 0.12);
   --sun: #a5392e;
   --fill: #b8382c;
+  --chart-1: #e5705f;
+  --chart-2: #86a2d8;
+  --chart-muted: #4d4940;
   color-scheme: dark;
 }
 

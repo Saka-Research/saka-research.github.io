@@ -1,0 +1,55 @@
+---
+// Wander benchmark averages from Tables 2–4 of the paper (zero-shot, single pretrained checkpoint).
+import DotResults, { type Bench } from '../DotResults.astro';
+
+const benches: Bench[] = [
+  {
+    id: 'kg',
+    label: 'Knowledge-graph link prediction',
+    metric: 'Mean MRR over 54 knowledge graphs',
+    better: 'higher',
+    decimals: 3,
+    domain: [0, 0.5],
+    note: 'All models zero-shot, pretrained on the same three knowledge graphs.',
+    rows: [
+      { m: 'Wander', v: 0.399 },
+      { m: 'Flock', v: 0.391 },
+      { m: 'Trix', v: 0.39 },
+      { m: 'Ultra', v: 0.366 },
+    ],
+  },
+  {
+    id: 'lp',
+    label: 'Homogeneous link prediction',
+    metric: 'Mean Recall@20 (%) over 10 graphs',
+    domain: [0, 50],
+    better: 'higher',
+    note: 'Buddy and NBFNet are trained and tuned on each dataset; Wander is zero-shot.',
+    rows: [
+      { m: 'Wander', v: 43.39 },
+      { m: 'NBFNet', v: 38.82 },
+      { m: 'Buddy', v: 30.82 },
+      { m: 'RA', v: 30.15 },
+      { m: 'AnyGraph', v: 27.85 },
+      { m: 'CN', v: 26.94 },
+    ],
+  },
+  {
+    id: 'nc',
+    label: 'Node classification',
+    metric: 'Mean test accuracy (%) over 26 graphs',
+    domain: [0, 80],
+    better: 'higher',
+    note: 'GCN is trained and tuned on each dataset; the foundation models are zero-shot.',
+    rows: [
+      { m: 'Wander', v: 68.2 },
+      { m: 'GraphPFN', v: 66.55 },
+      { m: 'GCN', v: 60.64 },
+      { m: 'TabPFN v3', v: 58.66 },
+      { m: 'GraphAny', v: 54.85 },
+    ],
+  },
+];
+---
+
+<DotResults benches={benches} highlight="Wander" />

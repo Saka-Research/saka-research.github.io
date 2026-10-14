@@ -1,0 +1,364 @@
+---
+// Real outputs of the pretrained Wander checkpoint on the Grids benchmark (Section 7.4), for one of the
+// five 25×25 grids. Data: public/data/wander-grids.json, produced from the wander-gfm evaluation
+// (scripts/eval/collect_grids_p_true_maps.py --record_walk_stats) with tools/export-grids-maps.py.
+//   left map:  share of the sampled walks through a node that also visit a labeled node
+//   right map: the model's predicted probability of the node's true class
+const lengths = [4, 8, 16, 32, 64];
+---
+
+<figure class="gm" data-reveal data-lengths={JSON.stringify(lengths)}>
+  <div class="controls">
+    <div class="pills" role="radiogroup" aria-label="Walk length">
+      <span class="pills-label">Walk length</span>
+      {lengths.map((L, i) => (
+        <button type="button" class="pill len" role="radio" aria-checked={i === 0 ? 'true' : 'false'} data-len={i}>{L}</button>
+      ))}
+    </div>
+    <div class="pills">
+      <button type="button" class="pill filt" aria-pressed="false">Keep only walks that visit a labeled node</button>
+      <span class="pills-label">(length 64)</span>
+    </div>
+  </div>
+
+  <div class="setting">
+    <span class="setting-l"></span>
+    <span class="acc-wrap">test accuracy <strong class="acc">—</strong></span>
+  </div>
+
+  <div class="maps">
+    <div class="map">
+      <div class="map-t">Walks through a node that also visit a labeled node</div>
+      <svg class="grid g-hit" viewBox="0 0 25 25" role="img" aria-label="Share of walks reaching a labeled node, per node"></svg>
+      <div class="legend">
+        <span class="ramp ramp-hit"></span>
+        <span class="ends"><span>0%</span><span>10%</span><span>≥ 40%</span></span>
+      </div>
+    </div>
+    <div class="map">
+      <div class="map-t">Predicted probability of the true class</div>
+      <svg class="grid g-p" viewBox="0 0 25 25" role="img" aria-label="Predicted probability of the true class, per node"></svg>
+      <div class="legend">
+        <span class="ramp ramp-p"></span>
+        <span class="ends ends-p"><span>0</span><span class="chance">0.2 = chance</span><span>1</span></span>
+      </div>
+    </div>
+    <div class="tip" role="status"></div>
+  </div>
+  <p class="lab-note"><span class="lab-dot"></span> labeled node (the only two labels in this grid) · hover a node for its values</p>
+
+  <figcaption>
+    Outputs of the pretrained Wander checkpoint, zero-shot, on one of the five grids of the Grids benchmark. Walk
+    statistics count the walks sampled for the query nodes over all six layers and inference samples. With filtering
+    (length-64 walks), twice as many walks are sampled and only those that visit a labeled node are kept. Accuracy is on
+    all five grids. The maps come from a re-run of the paper’s evaluation.
+  </figcaption>
+</figure>
+
+<script>
+  // Accuracies reported in the paper take precedence over the re-run (64 walks of length 64: 96.6% in the paper,
+  // 96.1% in the re-run that produced the maps).
+  const PAPER_ACCURACY: Record<string, number> = { n64_l64: 0.966 };
+
+  type Setting = { id: string; walk_num: number; walk_len: number; filtered: boolean; test_accuracy: number; p: (number | null)[]; hit: (number | null)[] };
+  type Data = { grid: { h: number; w: number; train: number[] }; settings: Setting[] };
+
+  function setup(root: HTMLElement) {
+    const lengths: number[] = JSON.parse(root.dataset.lengths!);
+    const gHit = root.querySelector<SVGSVGElement>('.g-hit')!;
+    const gP = root.querySelector<SVGSVGElement>('.g-p')!;
+    const lenBtns = [...root.querySelectorAll<HTMLButtonElement>('.len')];
+    const filtBtn = root.querySelector<HTMLButtonElement>('.filt')!;
+    let lenIdx = 0;
+    let filtered = false;
+    const label = root.querySelector<HTMLElement>('.setting-l')!;
+    const accEl = root.querySelector<HTMLElement>('.acc')!;
+    const tip = root.querySelector<HTMLElement>('.tip')!;
+    const ns = 'http://www.w3.org/2000/svg';
+    let data: Data | null = null;
+    let hitRects: SVGRectElement[] = [];
+    let pRects: SVGRectElement[] = [];
+    let dist: number[] = [];
+
+    function buildGrid(svg: SVGSVGElement, h: number, w: number, train: Set<number>) {
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      return Array.from({ length: h * w }, (_, v) => {
+        const r = document.createElementNS(ns, 'rect');
+        r.setAttribute('x', String((v % w) + 0.06));
+        r.setAttribute('y', String(Math.floor(v / w) + 0.06));
+        r.setAttribute('width', '0.88');
+        r.setAttribute('height', '0.88');
+        r.setAttribute('rx', '0.16');
+        r.setAttribute('class', train.has(v) ? 'lab' : 'cell');
+        r.dataset.v = String(v);
+        svg.appendChild(r);
+        return r;
+      });
+    }
+
+    function syncControls() {
+      lenBtns.forEach((b) => b.setAttribute('aria-checked', String(Number(b.dataset.len) === lenIdx)));
+      filtBtn.setAttribute('aria-pressed', String(filtered));
+    }
+
+    function current(): Setting | undefined {
+      if (!data) return;
+      const len = lengths[lenIdx];
+      // unfiltered: 64 walks per layer; filtered: twice as many sampled, only label-visiting ones kept
+      return data.settings.find((s) =>
+        filtered ? s.filtered && s.walk_len === len : !s.filtered && s.walk_len === len && s.walk_num === 64,
+      );
+    }
+
+    function paint() {
+      if (!data) return; // still loading
+      const s = current();
+      root.classList.toggle('is-missing', !s);
+      if (!s) {
+        label.textContent = `Filtered results for length ${lengths[lenIdx]} are not computed yet`;
+        accEl.textContent = '—';
+        return;
+      }
+      const hitScale = (x: number) => Math.min(1, Math.sqrt(x / 0.4)); // sqrt scale, capped at 40%
+      s.hit.forEach((x, v) => {
+        if (x !== null) hitRects[v].style.setProperty('--o', (0.06 + 0.94 * hitScale(x)).toFixed(3));
+      });
+      s.p.forEach((x, v) => {
+        if (x !== null) pRects[v].style.setProperty('--o', (0.06 + 0.94 * x).toFixed(3));
+      });
+      label.textContent = s.filtered
+        ? `Walks of length ${s.walk_len}, only those that visit a label kept`
+        : `64 walks of length ${s.walk_len} per layer`;
+      accEl.textContent = `${((PAPER_ACCURACY[s.id] ?? s.test_accuracy) * 100).toFixed(1)}%`;
+    }
+
+    function showTip(v: number, e: PointerEvent) {
+      const s = current();
+      if (!s || !data) return;
+      const train = data.grid.train.includes(v);
+      const h = s.hit[v];
+      const p = s.p[v];
+      tip.innerHTML = train
+        ? '<strong>labeled node</strong>'
+        : `<div>${dist[v]} steps from the nearest label</div>
+           <div>walks reaching a label: <strong>${h === null ? '—' : (h * 100).toFixed(1) + '%'}</strong></div>
+           <div>p(true class): <strong>${p === null ? '—' : p.toFixed(2)}</strong></div>`;
+      const box = root.querySelector<HTMLElement>('.maps')!.getBoundingClientRect();
+      tip.style.left = `${Math.min(e.clientX - box.left + 12, box.width - 200)}px`;
+      tip.style.top = `${e.clientY - box.top + 12}px`;
+      tip.classList.add('show');
+      [hitRects, pRects].forEach((rs) => rs.forEach((r, i) => r.classList.toggle('hover', i === v)));
+    }
+    function hideTip() {
+      tip.classList.remove('show');
+      [hitRects, pRects].forEach((rs) => rs.forEach((r) => r.classList.remove('hover')));
+    }
+
+    let loading: Promise<void> | null = null;
+    const ensureLoaded = () =>
+      (loading ??= load().catch(() => {
+        label.textContent = 'Could not load the data.';
+      }));
+
+    async function load() {
+      const res = await fetch('/data/wander-grids.json');
+      data = (await res.json()) as Data;
+      const { h, w, train } = data.grid;
+      const trainSet = new Set(train);
+      hitRects = buildGrid(gHit, h, w, trainSet);
+      pRects = buildGrid(gP, h, w, trainSet);
+      dist = Array.from({ length: h * w }, (_, v) =>
+        Math.min(...train.map((t) => Math.abs(Math.floor(t / w) - Math.floor(v / w)) + Math.abs((t % w) - (v % w)))),
+      );
+      for (const svg of [gHit, gP]) {
+        svg.addEventListener('pointermove', (e) => {
+          const v = (e.target as SVGElement).dataset?.v;
+          if (v !== undefined) showTip(Number(v), e);
+        });
+        svg.addEventListener('pointerleave', hideTip);
+      }
+      paint();
+    }
+
+    // filtering was only run with length-64 walks: turning it on jumps to 64,
+    // and choosing another length turns it off again
+    const LEN64 = lengths.indexOf(64);
+    lenBtns.forEach((b) =>
+      b.addEventListener('click', () => {
+        lenIdx = Number(b.dataset.len);
+        if (filtered && lenIdx !== LEN64) filtered = false;
+        syncControls();
+        ensureLoaded().then(paint);
+      }),
+    );
+    filtBtn.addEventListener('click', () => {
+      filtered = !filtered;
+      if (filtered) lenIdx = LEN64;
+      syncControls();
+      ensureLoaded().then(paint);
+    });
+
+    syncControls();
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) {
+        io.disconnect();
+        ensureLoaded();
+      }
+    }, { rootMargin: '200px' });
+    io.observe(root);
+  }
+
+  document.querySelectorAll<HTMLElement>('.gm').forEach(setup);
+</script>
+
+<style>
+  .gm {
+    margin: 32px 0;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--bg-elev);
+  }
+  .controls {
+    display: grid;
+    gap: 10px;
+  }
+  .is-missing .grid {
+    opacity: 0.35;
+  }
+  .setting {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px 16px;
+    margin: 16px 0 10px;
+    font-size: 0.88rem;
+  }
+  .setting-l {
+    font-weight: 600;
+  }
+  .acc-wrap {
+    color: var(--muted);
+  }
+  .acc {
+    color: var(--text);
+    font-size: 1.25rem;
+    font-variant-numeric: tabular-nums;
+    margin-left: 4px;
+  }
+
+  .maps {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    max-width: 780px; /* keep the maps a sensible size on wide screens */
+    margin: 0 auto;
+  }
+  @media (max-width: 560px) {
+    .maps {
+      grid-template-columns: 1fr;
+    }
+  }
+  .map-t {
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    min-height: 2.4em;
+  }
+  .grid {
+    width: 100%;
+    aspect-ratio: 1;
+    display: block;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .grid :global(rect.cell) {
+    fill-opacity: var(--o, 0.06);
+    transition: fill-opacity 0.45s ease;
+    cursor: crosshair;
+  }
+  .g-hit :global(rect.cell) {
+    fill: var(--chart-1);
+  }
+  .g-p :global(rect.cell) {
+    fill: var(--chart-2);
+  }
+  .grid :global(rect.lab) {
+    fill: var(--text);
+    stroke: var(--bg);
+    stroke-width: 0.15;
+  }
+  .grid :global(rect.hover) {
+    stroke: var(--text);
+    stroke-width: 0.12;
+  }
+  .legend {
+    display: grid;
+    gap: 3px;
+    margin-top: 6px;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  .ramp {
+    height: 8px;
+    border-radius: 4px;
+  }
+  .ramp-hit {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--chart-1) 6%, var(--bg)), var(--chart-1));
+  }
+  .ramp-p {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--chart-2) 6%, var(--bg)), var(--chart-2));
+  }
+  .ends {
+    display: flex;
+    justify-content: space-between;
+  }
+  .ends-p {
+    position: relative;
+  }
+  .ends-p .chance {
+    position: absolute;
+    left: 20%;
+    transform: translateX(-50%);
+  }
+  .lab-note {
+    margin: 10px 0 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lab-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    background: var(--text);
+  }
+  .tip {
+    position: absolute;
+    pointer-events: none;
+    z-index: 2;
+    max-width: 210px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  }
+  .tip.show {
+    opacity: 1;
+  }
+  figcaption {
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+</style>

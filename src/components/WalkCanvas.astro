@@ -1,0 +1,233 @@
+---
+// Decorative background for the Wander paper: a few walkers wander over a graph with
+// non-backtracking random walks (the walk rule Wander uses), leaving fading trails.
+// Calm by design: walkers glide slowly from node to node. Hovering near a node
+// highlights it and its neighbours. Pauses off-screen; a still frame with reduced motion.
+---
+
+<canvas class="walk-canvas" aria-hidden="true"></canvas>
+
+<script>
+  type Walker = { path: number[]; prev: number; cur: number; next: number; t: number; speed: number; hue: 0 | 1 };
+
+  function init(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const TRAIL = 14; // nodes kept in each walker's trail
+    const N_WALKERS = 5;
+
+    let w = 0;
+    let h = 0;
+    let xs: number[] = [];
+    let ys: number[] = [];
+    let adj: number[][] = [];
+    let walkers: Walker[] = [];
+    let running = false;
+    let raf = 0;
+    let last = 0;
+    const mouse = { x: -9999, y: -9999, active: false };
+
+    const readColors = () => {
+      const s = getComputedStyle(document.documentElement);
+      return {
+        a: s.getPropertyValue('--accent').trim() || '#3b5bdb',
+        b: s.getPropertyValue('--accent-2').trim() || '#0ca678',
+        line: s.getPropertyValue('--muted').trim() || '#888',
+      };
+    };
+    let color = readColors();
+
+    function build() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      if (Math.abs(rect.width - w) < 2 && Math.abs(rect.height - h) < 2 && xs.length) return;
+      w = rect.width;
+      h = rect.height;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // jittered grid of nodes covering the whole canvas
+      const gap = 62;
+      const cols = Math.ceil(w / gap) + 1;
+      const rows = Math.ceil(h / gap) + 1;
+      xs = [];
+      ys = [];
+      for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rows; j++) {
+          if (Math.random() < 0.12) continue;
+          xs.push(i * gap + (Math.random() - 0.5) * gap * 0.7);
+          ys.push(j * gap + (Math.random() - 0.5) * gap * 0.7);
+        }
+      }
+      // connect each node to its 3 nearest neighbours (undirected)
+      const n = xs.length;
+      adj = Array.from({ length: n }, () => [] as number[]);
+      for (let i = 0; i < n; i++) {
+        const near = [...Array(n).keys()]
+          .filter((j) => j !== i)
+          .map((j) => ({ j, d: (xs[i] - xs[j]) ** 2 + (ys[i] - ys[j]) ** 2 }))
+          .sort((a, b) => a.d - b.d)
+          .slice(0, 3);
+        for (const { j } of near) {
+          if (!adj[i].includes(j)) adj[i].push(j);
+          if (!adj[j].includes(i)) adj[j].push(i);
+        }
+      }
+      walkers = Array.from({ length: N_WALKERS }, (_, k) => spawn((k % 2) as 0 | 1));
+    }
+
+    function spawn(hue: 0 | 1, start?: number): Walker {
+      const cur = start ?? Math.floor(Math.random() * xs.length);
+      const wk: Walker = { path: [cur], prev: -1, cur, next: cur, t: 1, speed: 0.6 + Math.random() * 0.3, hue };
+      advance(wk);
+      return wk;
+    }
+
+    // non-backtracking step: avoid returning to the previous node unless it is the only neighbour
+    function advance(wk: Walker) {
+      const nb = adj[wk.cur];
+      const options = nb.length > 1 ? nb.filter((u) => u !== wk.prev) : nb;
+      wk.next = options[Math.floor(Math.random() * options.length)] ?? wk.cur;
+      wk.t = 0;
+    }
+
+    function step(dt: number) {
+      for (const wk of walkers) {
+        wk.t += (dt / 1000) * wk.speed; // ~1.5 s per hop
+        if (wk.t >= 1) {
+          wk.prev = wk.cur;
+          wk.cur = wk.next;
+          wk.path.push(wk.cur);
+          if (wk.path.length > TRAIL) wk.path.shift();
+          advance(wk);
+        }
+      }
+    }
+
+    function draw() {
+      ctx!.clearRect(0, 0, w, h);
+
+      // hovered node and its neighbours
+      let hover = -1;
+      let best = 40;
+      if (mouse.active) {
+        for (let i = 0; i < xs.length; i++) {
+          const d = Math.hypot(xs[i] - mouse.x, ys[i] - mouse.y);
+          if (d < best) {
+            best = d;
+            hover = i;
+          }
+        }
+      }
+
+      // graph
+      ctx!.lineWidth = 1;
+      ctx!.strokeStyle = color.line;
+      ctx!.globalAlpha = 0.12;
+      ctx!.beginPath();
+      for (let i = 0; i < xs.length; i++) {
+        for (const j of adj[i]) {
+          if (j < i) continue;
+          ctx!.moveTo(xs[i], ys[i]);
+          ctx!.lineTo(xs[j], ys[j]);
+        }
+      }
+      ctx!.stroke();
+      ctx!.fillStyle = color.line;
+      for (let i = 0; i < xs.length; i++) {
+        const lit = i === hover || (hover >= 0 && adj[hover].includes(i));
+        ctx!.globalAlpha = lit ? 0.7 : 0.25;
+        ctx!.beginPath();
+        ctx!.arc(xs[i], ys[i], lit ? 3 : 2, 0, Math.PI * 2);
+        ctx!.fill();
+      }
+      if (hover >= 0) {
+        ctx!.globalAlpha = 0.45;
+        ctx!.strokeStyle = color.a;
+        ctx!.beginPath();
+        for (const j of adj[hover]) {
+          ctx!.moveTo(xs[hover], ys[hover]);
+          ctx!.lineTo(xs[j], ys[j]);
+        }
+        ctx!.stroke();
+      }
+
+      // walkers: fading trail along the visited path, plus the walker itself mid-edge
+      for (const wk of walkers) {
+        const c = wk.hue === 0 ? color.a : color.b;
+        const e = wk.t < 0.5 ? 2 * wk.t * wk.t : 1 - Math.pow(-2 * wk.t + 2, 2) / 2; // ease in-out
+        const px = xs[wk.cur] + (xs[wk.next] - xs[wk.cur]) * e;
+        const py = ys[wk.cur] + (ys[wk.next] - ys[wk.cur]) * e;
+        const pts = wk.path.map((i) => [xs[i], ys[i]]).concat([[px, py]]);
+        ctx!.strokeStyle = c;
+        ctx!.lineWidth = 2;
+        ctx!.lineCap = 'round';
+        for (let k = 1; k < pts.length; k++) {
+          ctx!.globalAlpha = 0.55 * (k / pts.length) ** 1.5;
+          ctx!.beginPath();
+          ctx!.moveTo(pts[k - 1][0], pts[k - 1][1]);
+          ctx!.lineTo(pts[k][0], pts[k][1]);
+          ctx!.stroke();
+        }
+        ctx!.globalAlpha = 0.9;
+        ctx!.fillStyle = c;
+        ctx!.beginPath();
+        ctx!.arc(px, py, 3.6, 0, Math.PI * 2);
+        ctx!.fill();
+      }
+      ctx!.globalAlpha = 1;
+    }
+
+    function frame(now: number) {
+      const dt = Math.min(64, now - (last || now));
+      last = now;
+      step(dt);
+      draw();
+      if (running) raf = requestAnimationFrame(frame);
+    }
+    function start() {
+      if (running || reduceMotion) return;
+      running = true;
+      last = 0;
+      raf = requestAnimationFrame(frame);
+    }
+    function stop() {
+      running = false;
+      cancelAnimationFrame(raf);
+    }
+
+    build();
+    if (reduceMotion) for (let k = 0; k < TRAIL * 2; k++) step(1600); // pre-grow the trails for the still frame
+    draw();
+
+    new ResizeObserver(() => {
+      build();
+      if (!running) draw();
+    }).observe(canvas);
+    new IntersectionObserver(([entry]) => (entry.isIntersecting ? start() : stop())).observe(canvas);
+    window.addEventListener('pointermove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+      mouse.active = mouse.x >= 0 && mouse.y >= 0 && mouse.x <= rect.width && mouse.y <= rect.height;
+    });
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      color = readColors();
+      if (!running) draw();
+    });
+  }
+
+  document.querySelectorAll<HTMLCanvasElement>('.walk-canvas').forEach(init);
+</script>
+
+<style>
+  .walk-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+</style>

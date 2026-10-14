@@ -1,0 +1,23 @@
+---
+// In-text citation: <Cite k="bail2018" /> or <Cite k="bail2018, barbera2014" />
+// → "(Bail et al., 2018; Barberá, 2014)", each label linking to the paper.
+import { ALL_REFS as REFS } from './index';
+
+interface Props {
+  k: string;
+}
+
+const keys = Astro.props.k.split(',').map((s) => s.trim());
+const missing = keys.filter((key) => !REFS[key]);
+if (missing.length) throw new Error(`Unknown citation key(s): ${missing.join(', ')}`);
+---
+
+<style>
+  .cite {
+    font-size: 0.92em;
+    color: var(--muted);
+    white-space: normal;
+  }
+</style>
+
+<span class="cite">({keys.map((key, i) => (<><a href={REFS[key].url} title={REFS[key].ref} target="_blank" rel="noopener">{REFS[key].cite}</a>{i < keys.length - 1 && '; '}</>))})</span>

@@ -1,9 +1,9 @@
 ---
-import Base from '../layouts/Base.astro';
-import PageHeader from '../components/PageHeader.astro';
-import PubItem from '../components/PubItem.astro';
-import { SITE } from '../site.config';
-import { getPublications, getResearch, getMemberNames } from '../lib/content';
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import PubItem from '../../components/PubItem.astro';
+import { SITE } from '../../site.config';
+import { getPublications, getResearch, getMemberNames } from '../../lib/content';
 
 const pubs = await getPublications();
 const areas = (await getResearch()).filter((a) => pubs.some((p) => p.data.areas.some((r) => r.id === a.id)));

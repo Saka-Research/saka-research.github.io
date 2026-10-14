@@ -1,0 +1,264 @@
+---
+// Table 1 of the Wander paper: which graph foundation model families cover which inputs and tasks.
+// Each column header carries a small glyph illustrating the property; model names link to arXiv.
+type Family = { models: { name: string; arxiv?: string }[]; cov: [boolean, boolean, boolean, boolean]; ours?: boolean };
+
+const families: Family[] = [
+  { models: [{ name: 'Ultra', arxiv: '2310.04562' }, { name: 'Flock', arxiv: '2510.01510' }], cov: [false, true, false, true] },
+  { models: [{ name: 'OpenGraph', arxiv: '2403.01121' }, { name: 'AnyGraph', arxiv: '2408.10700' }], cov: [true, false, true, true] },
+  { models: [{ name: 'TS-GNN', arxiv: '2506.14291' }, { name: 'GraphPFN', arxiv: '2509.21489' }], cov: [true, false, true, false] },
+  { models: [{ name: 'UniLP', arxiv: '2402.07738' }, { name: 'TFMLinker', arxiv: '2602.08592' }], cov: [false, false, false, true] },
+  { models: [{ name: 'Wander' }], cov: [true, true, true, true], ours: true },
+];
+
+const columns = [
+  { key: 'feat', label: 'Node features', group: 'Input graphs' },
+  { key: 'types', label: 'Edge types', group: 'Input graphs' },
+  { key: 'node', label: 'Node prediction', group: 'Prediction task' },
+  { key: 'link', label: 'Link prediction', group: 'Prediction task' },
+];
+---
+
+<figure class="cov" data-reveal>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr class="groups">
+          <th></th>
+          <th colspan="2">Input graphs</th>
+          <th colspan="2">Prediction task</th>
+        </tr>
+        <tr>
+          <th class="fam">Model family</th>
+          {
+            columns.map((c) => (
+              <th class="col">
+                <svg class="glyph" viewBox="0 0 64 40" aria-hidden="true">
+                  {c.key === 'feat' && (
+                    <g>
+                      <line x1="10" y1="28" x2="26" y2="20" class="e" />
+                      <circle cx="10" cy="28" r="4.5" class="n" />
+                      <circle cx="26" cy="20" r="5.5" class="n hl" />
+                      {/* feature vector of the highlighted node */}
+                      <rect x="36" y="18" width="5" height="12" rx="1" class="bar b1" />
+                      <rect x="43" y="10" width="5" height="20" rx="1" class="bar b2" />
+                      <rect x="50" y="22" width="5" height="8" rx="1" class="bar b3" />
+                      <line x1="34" y1="30.5" x2="57" y2="30.5" class="axis" />
+                    </g>
+                  )}
+                  {c.key === 'types' && (
+                    <g>
+                      <line x1="12" y1="30" x2="32" y2="10" class="e t1" />
+                      <line x1="32" y1="10" x2="52" y2="30" class="e t2" />
+                      <line x1="12" y1="30" x2="52" y2="30" class="e t3" />
+                      <circle cx="12" cy="30" r="4.5" class="n" />
+                      <circle cx="32" cy="10" r="4.5" class="n" />
+                      <circle cx="52" cy="30" r="4.5" class="n" />
+                    </g>
+                  )}
+                  {c.key === 'node' && (
+                    <g>
+                      <line x1="12" y1="28" x2="32" y2="14" class="e" />
+                      <line x1="32" y1="14" x2="52" y2="28" class="e" />
+                      <circle cx="12" cy="28" r="4.5" class="n lab1" />
+                      <circle cx="52" cy="28" r="4.5" class="n lab2" />
+                      <circle cx="32" cy="14" r="7" class="n q" />
+                      <text x="32" y="17.5" class="qm">?</text>
+                    </g>
+                  )}
+                  {c.key === 'link' && (
+                    <g>
+                      <line x1="12" y1="30" x2="32" y2="12" class="e" />
+                      <line x1="12" y1="30" x2="52" y2="30" class="e dashed" />
+                      <circle cx="12" cy="30" r="4.5" class="n" />
+                      <circle cx="32" cy="12" r="4.5" class="n" />
+                      <circle cx="52" cy="30" r="4.5" class="n" />
+                      <text x="32" y="26" class="qm small">?</text>
+                    </g>
+                  )}
+                </svg>
+                <span>{c.label}</span>
+              </th>
+            ))
+          }
+        </tr>
+      </thead>
+      <tbody>
+        {
+          families.map((f) => (
+            <tr class:list={{ ours: f.ours }}>
+              <td class="fam">
+                {/* one line: whitespace here would show up before the comma */}
+                {f.models.map((m, i) => (<>{m.arxiv ? (<a href={`https://arxiv.org/abs/${m.arxiv}`} target="_blank" rel="noopener">{m.name}</a>) : (<strong>{m.name}</strong>)}{i < f.models.length - 1 && ', '}</>))}
+              </td>
+              {f.cov.map((yes) => (
+                <td class:list={['mark', yes ? 'yes' : 'no']}>
+                  <span aria-label={yes ? 'yes' : 'no'}>{yes ? '✓' : '✗'}</span>
+                </td>
+              ))}
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</figure>
+
+<style>
+  .cov {
+    margin: 24px 0;
+  }
+  .scroll {
+    overflow-x: auto;
+  }
+  .cov table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin: 0;
+    display: table;
+  }
+  .cov th,
+  .cov td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .groups th {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    border-bottom: 0;
+    padding-bottom: 0;
+    text-align: center;
+  }
+  th.col {
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+    vertical-align: bottom;
+    border-bottom-color: color-mix(in srgb, var(--text) 25%, var(--line));
+  }
+  th.col span {
+    display: block;
+    margin-top: 2px;
+  }
+  th.fam {
+    text-align: left;
+    vertical-align: bottom;
+    font-weight: 600;
+    font-size: 0.8rem;
+    border-bottom-color: color-mix(in srgb, var(--text) 25%, var(--line));
+  }
+  td.fam a {
+    color: var(--text);
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 100% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    text-decoration: none;
+    opacity: 0.85;
+  }
+  td.fam a:hover {
+    color: var(--accent);
+    opacity: 1;
+  }
+  td.mark {
+    text-align: center;
+    font-size: 1rem;
+  }
+  td.yes {
+    color: var(--chart-2);
+    font-weight: 700;
+  }
+  td.no {
+    color: var(--muted);
+    opacity: 0.6;
+  }
+  tr.ours td {
+    background: color-mix(in srgb, var(--chart-1) 7%, transparent);
+    font-weight: 700;
+    border-bottom: 0;
+  }
+  tr.ours td.fam {
+    border-radius: 8px 0 0 8px;
+  }
+  tr.ours td:last-child {
+    border-radius: 0 8px 8px 0;
+  }
+
+  .glyph {
+    display: block;
+    width: 64px;
+    height: 40px;
+    margin: 0 auto 2px;
+    overflow: visible;
+  }
+  .glyph .e {
+    stroke: var(--muted);
+    stroke-width: 1.6;
+    opacity: 0.7;
+  }
+  .glyph .e.dashed {
+    stroke: var(--chart-1);
+    stroke-dasharray: 3 3;
+    opacity: 1;
+  }
+  .glyph .e.t1 {
+    stroke: var(--chart-1);
+    opacity: 1;
+  }
+  .glyph .e.t2 {
+    stroke: var(--chart-2);
+    opacity: 1;
+  }
+  .glyph .e.t3 {
+    stroke: var(--muted);
+    stroke-dasharray: 4 2.5;
+  }
+  .glyph .n {
+    fill: var(--bg-elev);
+    stroke: var(--muted);
+    stroke-width: 1.6;
+  }
+  .glyph .n.hl {
+    stroke: var(--chart-1);
+    stroke-width: 2;
+  }
+  .glyph .n.lab1 {
+    fill: var(--chart-1);
+    stroke: var(--chart-1);
+  }
+  .glyph .n.lab2 {
+    fill: var(--chart-2);
+    stroke: var(--chart-2);
+  }
+  .glyph .n.q {
+    stroke: var(--text);
+    stroke-dasharray: 2.5 2;
+  }
+  .glyph .qm {
+    font: 700 10px var(--font-sans);
+    fill: var(--text);
+    text-anchor: middle;
+  }
+  .glyph .qm.small {
+    fill: var(--chart-1);
+  }
+  .glyph .bar {
+    fill: var(--chart-1);
+  }
+  .glyph .b2 {
+    opacity: 0.75;
+  }
+  .glyph .b3 {
+    opacity: 0.5;
+  }
+  .glyph .axis {
+    stroke: var(--muted);
+    stroke-width: 1;
+    opacity: 0.6;
+  }
+</style>

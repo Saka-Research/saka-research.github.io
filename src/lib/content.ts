@@ -75,3 +75,9 @@ export function initials(name: string) {
   const parts = name.split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }
+
+/** Publications written as .mdx with a text body get their own project page at /publications/<id>/. */
+export function hasProjectPage(p: Publication) {
+  return !!p.body?.trim();
+}
+export const projectUrl = (p: Publication) => `/publications/${p.id}/`;
