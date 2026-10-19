@@ -70,7 +70,7 @@ const team = defineCollection({
     alumni: z
       .object({
         now: z.string().optional(), // "where are they now"
-        period: z.string().optional(), // e.g. "PhD, 2018–2022"
+        period: z.string().optional(), // Dates only, e.g. "2018–2022" or "Jan–Aug 2026"
         thesis: z.string().optional(),
         website: z.string().optional(),
       })

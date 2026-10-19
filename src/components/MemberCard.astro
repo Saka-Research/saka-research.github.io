@@ -10,10 +10,8 @@ interface Props {
 }
 const { member, delay = 0, compact = false } = Astro.props;
 const { name, role, affiliation, since, photo, bio, cosupervisors, links, alumni } = member.data;
-// Alumni: "DPhil, 2018–2022" instead of the role, and where they are now instead of the affiliation
-const roleLine = alumni ? (alumni.period ?? role) : role;
 const affLine = alumni
-  ? alumni.now && `Now: ${alumni.now}`
+  ? affiliation
   : [affiliation, since && `since ${since}`].filter(Boolean).join(' · ');
 
 const icons = [
@@ -27,7 +25,7 @@ const icons = [
 ---
 
 <article
-  class:list={['card', 'member', { compact, hoverable: compact }]}
+  class:list={['card', 'member', { compact, hoverable: compact, alumni: !!alumni }]}
   id={member.id}
   data-member-card={compact ? undefined : member.id}
   data-reveal
@@ -46,8 +44,10 @@ const icons = [
         )
       }
     </h3>
-    <p class="role">{roleLine}</p>
+    <p class="role">{role}</p>
     {!compact && affLine && <p class="aff">{affLine}</p>}
+    {!compact && alumni?.period && <p class="period">{alumni.period}</p>}
+    {!compact && alumni?.now && <p class="now"><span>Now:</span> {alumni.now}</p>}
     {!compact && <p class="bio">{bio}</p>}
     {
       !compact && cosupervisors.length > 0 && (
@@ -126,6 +126,26 @@ const icons = [
     -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+  .alumni .aff {
+    margin-top: 6px;
+  }
+  .period {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .now {
+    margin-top: 14px;
+    font-size: 0.86rem;
+    color: var(--text);
+  }
+  .now span {
+    color: var(--accent);
+  }
+  .alumni .bio {
+    display: block;
+    overflow: visible;
+    margin-top: 18px;
   }
   [data-member-card] {
     cursor: pointer;

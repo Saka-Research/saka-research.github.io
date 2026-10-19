@@ -10,9 +10,8 @@ interface Props {
 }
 const { member, areas, pubs } = Astro.props;
 const { name, role, affiliation, since, photo, bio, cosupervisors, links, alumni } = member.data;
-const roleLine = alumni ? (alumni.period ?? role) : role;
 const affLine = alumni
-  ? alumni.now && `Now: ${alumni.now}`
+  ? affiliation
   : [affiliation, since && `since ${since}`].filter(Boolean).join(' · ');
 
 const contacts = [
@@ -40,8 +39,10 @@ const pubLink = (p: Publication) =>
       <Avatar name={name} photo={photo} size={104} />
       <div>
         <h2 id={`member-${member.id}-name`}>{name}</h2>
-        <p class="role">{roleLine}</p>
+        <p class="role">{role}</p>
         {affLine && <p class="aff">{affLine}</p>}
+        {alumni?.period && <p class="aff">{alumni.period}</p>}
+        {alumni?.now && <p class="now"><span>Now:</span> {alumni.now}</p>}
       </div>
     </header>
 
@@ -227,6 +228,14 @@ const pubLink = (p: Publication) =>
     margin-top: 20px;
     font-size: 0.95rem;
     line-height: 1.6;
+  }
+  .now {
+    margin-top: 12px;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+  .now span {
+    color: var(--accent);
   }
   section {
     margin-top: 20px;
