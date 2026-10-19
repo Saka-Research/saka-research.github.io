@@ -7,5 +7,6 @@ abstract: "Macrocycles are ring-shaped molecules that offer a promising alternat
 areas: ["generative-modeling", "ai-for-science"]
 arxiv: "2602.14977"
 pdf: https://arxiv.org/pdf/2602.14977
+code: https://github.com/ala1705/MacroGuide
 featured: true
 ---
