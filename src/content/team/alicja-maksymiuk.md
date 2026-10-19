@@ -2,7 +2,7 @@
 name: "Alicja Maksymiuk"
 aliases: ["Alicja (Ala) Maksymiuk"]
 role: "PhD Student"
-affiliation: "University of Oxford"
+affiliation: "University of Oxford & AITHYRA"
 since: 2024
 topic: "Generative AI for drug discovery"
 bio: "Alicja is a PhD student at the University of Oxford working on generative AI for drug discovery and science. Her interests include molecule generation, including macrocycles, using diffusion, flow, and autoregressive models, as well as molecular dynamics and sampling."
