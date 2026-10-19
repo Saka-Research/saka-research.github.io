@@ -10,6 +10,6 @@ links:
   website: "https://www.cs.ox.ac.uk/people/emily.jin/"
 alumni:
   now: "Research Scientist at the Ellison Institute of Technology"
-  period: "2021–2025"
+  period: "2022–2026"
   thesis: "Graph machine learning over biomedical knowledge graphs for drug discovery"
 ---
